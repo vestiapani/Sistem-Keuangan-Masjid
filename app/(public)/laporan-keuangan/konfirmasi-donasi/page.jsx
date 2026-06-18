@@ -4,7 +4,9 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Upload, CheckCircle2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 import { submitDonasiPublik } from "@/lib/publik";
+import { uploadBuktiTransfer } from "@/lib/storage";
 
 const REKENING_OPTIONS = [
   { value: "bsi-001", label: "BSI — 7123456789 (a.n. Masjid Al-Ikhlas)" },
@@ -19,8 +21,9 @@ const PROGRAM_OPTIONS = [
 ];
 
 export default function KonfirmasiDonasiPage() {
-  const [step, setStep] = useState("form"); // form | sukses
+  const [step, setStep] = useState("form");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState(null);
 
   const [form, setForm] = useState({
@@ -36,6 +39,24 @@ export default function KonfirmasiDonasiPage() {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
+  const handleFileChange = (e) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+
+    if (selected.size > 5 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 5MB.");
+      return;
+    }
+
+    const allowed = ["image/jpeg", "image/png", "application/pdf"];
+    if (!allowed.includes(selected.type)) {
+      toast.error("Format file harus JPG, PNG, atau PDF.");
+      return;
+    }
+
+    setFile(selected);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.jumlah || parseInt(form.jumlah) <= 0) {
@@ -45,7 +66,8 @@ export default function KonfirmasiDonasiPage() {
 
     setLoading(true);
     try {
-      await submitDonasiPublik({
+      // Submit donasi dulu untuk dapat ID
+      const donasi = await submitDonasiPublik({
         nama_donatur: form.nama || "Hamba Allah",
         tanggal_donasi: form.tanggal || new Date().toISOString().split("T")[0],
         jumlah_dana: parseInt(form.jumlah),
@@ -53,13 +75,43 @@ export default function KonfirmasiDonasiPage() {
         metode_pembayaran: "Transfer",
         keterangan: form.catatan || null,
       });
+
+      // Upload bukti kalau ada file
+      if (file) {
+        setUploading(true);
+        const path = await uploadBuktiTransfer(file, donasi.id);
+
+        const supabase = createClient();
+        await supabase
+          .from("donasis")
+          .update({ bukti_transfer_url: path })
+          .eq("id", donasi.id);
+
+        setUploading(false);
+      }
+
       setStep("sukses");
     } catch (err) {
       console.error(err);
       toast.error("Gagal mengirim konfirmasi. Silakan coba lagi.");
     } finally {
       setLoading(false);
+      setUploading(false);
     }
+  };
+
+  const handleReset = () => {
+    setStep("form");
+    setForm({
+      nama: "",
+      kontak: "",
+      tanggal: "",
+      jumlah: "",
+      rekening: "",
+      program: "",
+      catatan: "",
+    });
+    setFile(null);
   };
 
   if (step === "sukses") {
@@ -76,19 +128,7 @@ export default function KonfirmasiDonasiPage() {
           akan memverifikasi dalam 1×24 jam kerja.
         </p>
         <button
-          onClick={() => {
-            setStep("form");
-            setForm({
-              nama: "",
-              kontak: "",
-              tanggal: "",
-              jumlah: "",
-              rekening: "",
-              program: "",
-              catatan: "",
-            });
-            setFile(null);
-          }}
+          onClick={handleReset}
           className="text-sm text-[#0F4C3A] hover:underline"
         >
           Kirim konfirmasi lagi
@@ -269,10 +309,7 @@ export default function KonfirmasiDonasiPage() {
                   Bukti Transfer
                 </label>
                 {!file ? (
-                  <div
-                    onClick={() => setFile("bukti_transfer.jpg")}
-                    className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#0F4C3A]/40 hover:bg-slate-50 transition-colors"
-                  >
+                  <label className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#0F4C3A]/40 hover:bg-slate-50 transition-colors">
                     <Upload size={24} className="text-slate-400 mb-2" />
                     <p className="text-sm font-medium text-slate-600">
                       Upload file atau drag and drop
@@ -280,14 +317,25 @@ export default function KonfirmasiDonasiPage() {
                     <p className="text-xs text-slate-400 mt-1">
                       PNG, JPG, PDF up to 5MB
                     </p>
-                  </div>
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
                 ) : (
                   <div className="border border-slate-200 rounded-xl p-4 flex items-center justify-between bg-emerald-50">
                     <div className="flex items-center space-x-3">
                       <CheckCircle2 size={18} className="text-emerald-600" />
-                      <span className="text-sm font-medium text-slate-700">
-                        {file}
-                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {(file.size / 1024).toFixed(0)} KB
+                        </p>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -319,11 +367,19 @@ export default function KonfirmasiDonasiPage() {
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || uploading}
                   className="flex items-center space-x-2 bg-[#0F4C3A] hover:bg-[#0A3629] text-white px-6 py-3 rounded-lg font-semibold text-sm transition-colors disabled:opacity-70"
                 >
-                  <span>{loading ? "Mengirim..." : "Kirim Konfirmasi"}</span>
-                  {!loading && <span>➤</span>}
+                  {uploading ? (
+                    <span>Mengupload bukti...</span>
+                  ) : loading ? (
+                    <span>Mengirim...</span>
+                  ) : (
+                    <>
+                      <span>Kirim Konfirmasi</span>
+                      <span>➤</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
