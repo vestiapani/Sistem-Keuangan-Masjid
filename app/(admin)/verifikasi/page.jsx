@@ -39,29 +39,62 @@ export default function VerifikasiPage() {
     loadData();
   }, [filter]);
 
-  const handleVerifikasi = async (id, status) => {
+  const handleVerifikasi = (id, status) => {
     const label = status === "verified" ? "verifikasi" : "tolak";
-    if (!confirm(`Yakin ingin ${label} donasi ini?`)) return;
+    const isVerify = status === "verified";
 
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("donasis")
-      .update({
-        status_verifikasi: status,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    toast(
+      <div className="space-y-3">
+        <p className="text-sm font-semibold text-slate-800">
+          {isVerify ? "Verifikasi donasi ini?" : "Tolak donasi ini?"}
+        </p>
+        <p className="text-xs text-slate-500">
+          {isVerify
+            ? "Donasi akan masuk ke laporan keuangan."
+            : "Donasi akan ditandai sebagai ditolak."}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              toast.dismiss();
+              const supabase = createClient();
+              const { error } = await supabase
+                .from("donasis")
+                .update({
+                  status_verifikasi: status,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", id);
 
-    if (error) {
-      toast.error("Gagal memperbarui status.");
-    } else {
-      toast.success(
-        status === "verified"
-          ? "Donasi berhasil diverifikasi!"
-          : "Donasi ditolak.",
-      );
-      loadData();
-    }
+              if (error) {
+                toast.error("Gagal memperbarui status.");
+              } else {
+                toast.success(
+                  isVerify
+                    ? "Donasi berhasil diverifikasi!"
+                    : "Donasi ditolak.",
+                );
+                loadData();
+              }
+            }}
+            className={`px-3 py-1.5 rounded text-xs font-semibold text-white ${
+              isVerify
+                ? "bg-emerald-600 hover:bg-emerald-700"
+                : "bg-rose-500 hover:bg-rose-600"
+            }`}
+          >
+            Ya, {label}
+          </button>
+          <button
+            onClick={() => toast.dismiss()}
+            className="px-3 py-1.5 rounded text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
+          >
+            Batal
+          </button>
+        </div>
+      </div>,
+      { duration: Infinity },
+    );
   };
 
   const badgeStatus = {

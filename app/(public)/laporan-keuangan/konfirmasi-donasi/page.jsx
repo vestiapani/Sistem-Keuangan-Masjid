@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Upload, CheckCircle2, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
 import { submitDonasiPublik } from "@/lib/publik";
 
 const REKENING_OPTIONS = [
@@ -37,7 +38,10 @@ export default function KonfirmasiDonasiPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.jumlah || parseInt(form.jumlah) <= 0) return;
+    if (!form.jumlah || parseInt(form.jumlah) <= 0) {
+      toast.error("Harap isi nominal donasi dengan benar.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -52,7 +56,7 @@ export default function KonfirmasiDonasiPage() {
       setStep("sukses");
     } catch (err) {
       console.error(err);
-      alert("Gagal mengirim konfirmasi. Silakan coba lagi.");
+      toast.error("Gagal mengirim konfirmasi. Silakan coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -363,7 +367,7 @@ export default function KonfirmasiDonasiPage() {
                         : "bg-slate-100 text-slate-500"
                     }`}
                   >
-                    {active ? step : step}
+                    {step}
                   </div>
                   <div className="bg-slate-50 rounded-xl p-3 flex-1">
                     <p className="text-sm font-semibold text-slate-800 flex items-center space-x-1.5">

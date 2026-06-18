@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Plus, Minus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { getDashboardData } from "@/lib/dashboard";
+import { createClient } from "@/lib/supabase/client";
+import { periodeToDateRange } from "@/lib/dashboard";
 
 export default function DashboardPage() {
   const [periode, setPeriode] = useState("Oktober 2023");
@@ -15,22 +16,119 @@ export default function DashboardPage() {
 
   const formatRp = (angka) => new Intl.NumberFormat("id-ID").format(angka ?? 0);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getDashboardData(periode);
-      setData(result);
+      const supabase = createClient();
+      const { startDate, endDate } = periodeToDateRange(periode);
+
+      const [
+        { data: donasiAll, error: e1 },
+        { data: pengeluaranAll, error: e2 },
+      ] = await Promise.all([
+        supabase
+          .from("donasis")
+          .select(
+            "id, jumlah_dana, tanggal_donasi, nama_donatur, kategori, created_at",
+          )
+          .eq("status_verifikasi", "verified")
+          .order("tanggal_donasi", { ascending: false }),
+        supabase
+          .from("pengeluarans")
+          .select(
+            "id, jumlah_pengeluaran, tanggal_pengeluaran, keperluan, kategori, created_at",
+          )
+          .order("tanggal_pengeluaran", { ascending: false }),
+      ]);
+
+      if (e1) throw e1;
+      if (e2) throw e2;
+
+      const donasiPeriode = (donasiAll ?? []).filter(
+        (d) => d.tanggal_donasi >= startDate && d.tanggal_donasi <= endDate,
+      );
+      const pengeluaranPeriode = (pengeluaranAll ?? []).filter(
+        (p) =>
+          p.tanggal_pengeluaran >= startDate &&
+          p.tanggal_pengeluaran <= endDate,
+      );
+
+      const totalMasukPeriode = donasiPeriode.reduce(
+        (acc, d) => acc + d.jumlah_dana,
+        0,
+      );
+      const totalKeluarPeriode = pengeluaranPeriode.reduce(
+        (acc, p) => acc + p.jumlah_pengeluaran,
+        0,
+      );
+      const totalMasukAll = (donasiAll ?? []).reduce(
+        (acc, d) => acc + d.jumlah_dana,
+        0,
+      );
+      const totalKeluarAll = (pengeluaranAll ?? []).reduce(
+        (acc, p) => acc + p.jumlah_pengeluaran,
+        0,
+      );
+      const saldoKasSekarang = totalMasukAll - totalKeluarAll;
+
+      const transaksiTerakhir = [
+        ...donasiPeriode.map((d) => ({
+          id: `donasi-${d.id}`,
+          desc: d.nama_donatur,
+          date: d.tanggal_donasi,
+          amount: d.jumlah_dana,
+          type: "Pemasukan",
+          cat: d.kategori,
+          created_at: d.created_at,
+        })),
+        ...pengeluaranPeriode.map((p) => ({
+          id: `pengeluaran-${p.id}`,
+          desc: p.keperluan,
+          date: p.tanggal_pengeluaran,
+          amount: p.jumlah_pengeluaran,
+          type: "Pengeluaran",
+          cat: p.kategori,
+          created_at: p.created_at,
+        })),
+      ]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 5);
+
+      setData({
+        saldoKasSekarang,
+        totalMasukPeriode,
+        totalKeluarPeriode,
+        transaksiTerakhir,
+      });
     } catch (err) {
       console.error(err);
       toast.error("Gagal memuat data dashboard.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [periode]);
 
   useEffect(() => {
     loadData();
-  }, [periode]);
+
+    // Realtime: auto-refresh ketika ada insert/update di donasis atau pengeluarans
+    const supabase = createClient();
+    const channel = supabase
+      .channel("dashboard-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "donasis" },
+        loadData,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pengeluarans" },
+        loadData,
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [loadData]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -144,20 +242,26 @@ export default function DashboardPage() {
 
         {/* Transaksi Terakhir */}
         <Card>
-          <div className="p-5 border-b">
+          <div className="p-5 border-b flex items-center justify-between">
             <h3 className="font-bold">Transaksi Terakhir</h3>
+            <button
+              onClick={loadData}
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
+              ↻ Refresh
+            </button>
           </div>
           <CardContent className="p-0">
             {loading ? (
               <div className="p-6 text-sm text-slate-400 text-center">
                 Memuat...
               </div>
-            ) : data?.transaksiTerakhir?.length === 0 ? (
+            ) : !data?.transaksiTerakhir?.length ? (
               <div className="p-6 text-sm text-slate-400 text-center">
                 Belum ada transaksi.
               </div>
             ) : (
-              data?.transaksiTerakhir?.map((item) => (
+              data.transaksiTerakhir.map((item) => (
                 <div
                   key={item.id}
                   className="flex items-center justify-between p-4 border-b last:border-0"
