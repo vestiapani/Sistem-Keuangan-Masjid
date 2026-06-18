@@ -53,7 +53,7 @@ export default function Sidebar() {
 
         <div className="px-6 pb-6">
           <Link
-            href="/donasi/create"
+            href="/donasi?new=1"
             className="w-full bg-[#0F4C3A] hover:bg-[#0A3629] text-white flex items-center justify-center space-x-2 py-2.5 rounded-md font-medium text-sm transition-colors"
           >
             <Plus size={18} />

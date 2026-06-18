@@ -1,20 +1,23 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, HelpCircle } from "lucide-react";
-import { useTransactions } from "@/app/context/TransactionContext";
+import { getNotifikasiTerbaru } from "@/lib/dashboard";
 
 export default function Navbar() {
   const [showNotif, setShowNotif] = useState(false);
-  const { transactions } = useTransactions();
+  const [latestNotifs, setLatestNotifs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const formatRp = (angka) => new Intl.NumberFormat("id-ID").format(angka);
 
-  // 3 transaksi terbaru (id terbesar = baru ditambahkan)
-  const latestNotifs = [...transactions]
-    .sort((a, b) => b.id - a.id)
-    .slice(0, 3);
+  useEffect(() => {
+    getNotifikasiTerbaru(3)
+      .then(setLatestNotifs)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10">
@@ -30,7 +33,7 @@ export default function Navbar() {
             className="p-2 text-slate-400 hover:text-slate-600 relative"
           >
             <Bell size={20} />
-            {latestNotifs.length > 0 && (
+            {!loading && latestNotifs.length > 0 && (
               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" />
             )}
           </button>
@@ -41,7 +44,9 @@ export default function Navbar() {
                 Notifikasi Baru
               </div>
 
-              {latestNotifs.length === 0 ? (
+              {loading ? (
+                <div className="p-4 text-sm text-slate-400">Memuat...</div>
+              ) : latestNotifs.length === 0 ? (
                 <div className="p-4 text-sm text-slate-500">
                   Belum ada transaksi.
                 </div>

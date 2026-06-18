@@ -32,14 +32,6 @@ export async function proxy(request) {
 
   const { pathname } = request.nextUrl;
 
-  // Route publik — boleh diakses tanpa login
-  const isPublicRoute =
-    pathname === "/transparansi" ||
-    pathname === "/donasi-publik" ||
-    pathname.startsWith("/donasi-publik/");
-
-  if (isPublicRoute) return supabaseResponse;
-
   // Kalau belum login dan coba akses route admin → redirect ke /login
   const isAdminRoute =
     pathname.startsWith("/dashboard") ||

@@ -56,7 +56,7 @@ export default function DashboardPage() {
               <Minus size={16} className="mr-2" /> Input Pengeluaran
             </Button>
           </Link>
-          <Link href="/donasi/create">
+          <Link href="/donasi?new=1">
             <Button className="bg-[#0F4C3A] text-white">
               <Plus size={16} className="mr-2" /> Tambah Donasi
             </Button>

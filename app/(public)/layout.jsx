@@ -10,7 +10,6 @@ const navLinks = [
   { name: "Jadwal Sholat", href: "/jadwal-sholat" },
   { name: "Laporan Keuangan", href: "/laporan-keuangan" },
   { name: "Kegiatan", href: "/kegiatan" },
-  { name: "Berita", href: "/berita" },
 ];
 
 function PublicNavbar() {
@@ -49,9 +48,12 @@ function PublicNavbar() {
           <button className="p-2 text-slate-400 hover:text-slate-600 relative">
             <Bell size={20} />
           </button>
-          <button className="p-2 text-slate-400 hover:text-slate-600">
+          <Link
+            href="/login"
+            className="p-2 text-slate-400 hover:text-slate-600"
+          >
             <User size={20} />
-          </button>
+          </Link>
         </div>
       </div>
     </header>
