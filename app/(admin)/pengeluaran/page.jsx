@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
-import { addPengeluaran } from "@/lib/pengeluaran";
+import { addPengeluaran, updateBuktiPengeluaran } from "@/lib/pengeluaran";
+import { uploadBuktiPengeluaran } from "@/lib/storage";
 
 export default function PengeluaranPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,20 +37,30 @@ export default function PengeluaranPage() {
     setIsSubmitting(true);
 
     try {
-      await addPengeluaran({
+      const pengeluaran = await addPengeluaran({
         tanggal_pengeluaran: formData.tanggal,
         jumlah_pengeluaran: parseInt(formData.nominal),
         kategori: formData.kategori,
         keperluan: formData.keperluan,
       });
 
+      if (file) {
+        const path = await uploadBuktiPengeluaran(file, pengeluaran.id);
+
+        await updateBuktiPengeluaran(pengeluaran.id, path);
+      }
+
       toast.success("Pengeluaran berhasil dicatat!");
 
       setFormData({ tanggal: "", kategori: "", keperluan: "", nominal: "" });
       setFile(null);
     } catch (err) {
-      console.error(err);
-      toast.error("Gagal menyimpan pengeluaran. Coba lagi.");
+      console.error("FULL ERROR:", err);
+      console.log("MESSAGE:", err?.message);
+      console.log("DETAILS:", err?.details);
+      console.log("HINT:", err?.hint);
+
+      toast.error(err?.message || "Gagal menyimpan");
     } finally {
       setIsSubmitting(false);
     }
@@ -144,18 +155,31 @@ export default function PengeluaranPage() {
               Upload Bukti Nota / Kwitansi
             </label>
             {!file ? (
-              <div
-                onClick={() => setFile("nota_pembayaran.jpg")}
+              <label
+                htmlFor="bukti"
                 className="border-2 border-dashed border-slate-300 rounded-lg p-8 flex flex-col items-center justify-center text-center bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <Upload size={28} className="text-slate-400 mb-3" />
+
                 <p className="text-sm font-medium text-slate-700">
-                  Klik untuk mensimulasikan upload file
+                  Klik untuk upload bukti
                 </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Format: JPG, PNG, PDF (Max. 5MB)
-                </p>
-              </div>
+
+                <p className="text-xs text-slate-500 mt-1">JPG, PNG, PDF</p>
+
+                <input
+                  id="bukti"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const selectedFile = e.target.files?.[0];
+                    if (selectedFile) {
+                      setFile(selectedFile);
+                    }
+                  }}
+                />
+              </label>
             ) : (
               <div className="border border-slate-200 rounded-lg p-4 flex items-center justify-between bg-white">
                 <div className="flex items-center space-x-3">
@@ -164,7 +188,7 @@ export default function PengeluaranPage() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-800">
-                      {file}
+                      {file.name}
                     </p>
                     <p className="text-xs text-slate-500">245 KB • Selesai</p>
                   </div>

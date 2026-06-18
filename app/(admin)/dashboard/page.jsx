@@ -8,10 +8,41 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { periodeToDateRange } from "@/lib/dashboard";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
+
+import { getMonthlyCashflow } from "@/lib/dashboard";
 
 export default function DashboardPage() {
-  const [periode, setPeriode] = useState("Oktober 2023");
+  const now = new Date();
+
+  const [periode, setPeriode] = useState(
+    now.toLocaleString("id-ID", {
+      month: "long",
+      year: "numeric",
+    }),
+  );
+  
+  const actionLabel = {
+    CREATE_DONATION: "Menambah Donasi",
+    UPDATE_DONATION: "Mengubah Donasi",
+    DELETE_DONATION: "Menghapus Donasi",
+    VERIFY_DONATION: "Memverifikasi Donasi",
+
+    CREATE_EXPENSE: "Menambah Pengeluaran",
+    UPDATE_EXPENSE: "Mengubah Pengeluaran",
+    DELETE_EXPENSE: "Menghapus Pengeluaran",
+  };
   const [data, setData] = useState(null);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const formatRp = (angka) => new Intl.NumberFormat("id-ID").format(angka ?? 0);
@@ -25,6 +56,7 @@ export default function DashboardPage() {
       const [
         { data: donasiAll, error: e1 },
         { data: pengeluaranAll, error: e2 },
+        { data: activityLogs, error: e3 },
       ] = await Promise.all([
         supabase
           .from("donasis")
@@ -33,16 +65,24 @@ export default function DashboardPage() {
           )
           .eq("status_verifikasi", "verified")
           .order("tanggal_donasi", { ascending: false }),
+
         supabase
           .from("pengeluarans")
           .select(
             "id, jumlah_pengeluaran, tanggal_pengeluaran, keperluan, kategori, created_at",
           )
           .order("tanggal_pengeluaran", { ascending: false }),
+
+        supabase
+          .from("activity_logs")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(5),
       ]);
 
       if (e1) throw e1;
       if (e2) throw e2;
+      if (e3) throw e3;
 
       const donasiPeriode = (donasiAll ?? []).filter(
         (d) => d.tanggal_donasi >= startDate && d.tanggal_donasi <= endDate,
@@ -94,6 +134,7 @@ export default function DashboardPage() {
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         .slice(0, 5);
 
+      setActivities(activityLogs ?? []);
       setData({
         saldoKasSekarang,
         totalMasukPeriode,
@@ -117,12 +158,12 @@ export default function DashboardPage() {
       .channel("dashboard-realtime")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "donasis" },
+        { event: "*", schema: "public", table: "pengeluarans" },
         loadData,
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "pengeluarans" },
+        { event: "*", schema: "public", table: "activity_logs" },
         loadData,
       )
       .subscribe();
@@ -237,6 +278,38 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <div className="p-5 border-b">
+            <h3 className="font-bold">Aktivitas Terbaru</h3>
+          </div>
+
+          <CardContent className="p-0">
+            {activities.length === 0 ? (
+              <div className="p-6 text-sm text-slate-400 text-center">
+                Belum ada aktivitas.
+              </div>
+            ) : (
+              activities.map((log) => (
+                <div
+                  key={log.id}
+                  className="flex items-center justify-between p-4 border-b last:border-0"
+                >
+                  <div>
+                    <p className="text-sm font-medium">
+                      {actionLabel[log.action] ?? log.action}
+                    </p>
+
+                    <p className="text-xs text-slate-500">{log.table_name}</p>
+                  </div>
+
+                  <span className="text-xs text-slate-400">
+                    {new Date(log.created_at).toLocaleDateString("id-ID")}
+                  </span>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 

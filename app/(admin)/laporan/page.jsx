@@ -19,9 +19,17 @@ import {
   updatePengeluaran,
 } from "@/lib/pengeluaran";
 import { periodeToDateRange } from "@/lib/dashboard";
+import ExportPdfButton from "@/components/laporan/ExportPdfButton";
 
 export default function LaporanPage() {
-  const [periode, setPeriode] = useState("Oktober 2023");
+  const now = new Date();
+
+  const [periode, setPeriode] = useState(
+    now.toLocaleString("id-ID", {
+      month: "long",
+      year: "numeric",
+    }),
+  );
   const [filter, setFilter] = useState("Semua");
   const [donasis, setDonasis] = useState([]);
   const [pengeluarans, setPengeluarans] = useState([]);
@@ -36,6 +44,7 @@ export default function LaporanPage() {
       const [d, p] = await Promise.all([getDonasis(), getPengeluarans()]);
       setDonasis(d);
       setPengeluarans(p);
+      console.log(pengeluarans);
     } catch (err) {
       toast.error("Gagal memuat data.");
     } finally {
@@ -132,14 +141,25 @@ export default function LaporanPage() {
         <h3 className="text-2xl font-bold text-slate-900">
           Laporan & Transparansi
         </h3>
-        <select
-          value={periode}
-          onChange={(e) => setPeriode(e.target.value)}
-          className="bg-white border border-slate-200 rounded-md px-4 py-2 text-sm"
-        >
-          <option value="Oktober 2023">Oktober 2023</option>
-          <option value="September 2023">September 2023</option>
-        </select>
+
+        <div className="flex gap-3 ">
+          <ExportPdfButton
+            periode={periode}
+            totalMasuk={totalMasuk}
+            totalKeluar={totalKeluar}
+            surplus={surplus}
+            rows={allRows}
+          />
+
+          <select
+            value={periode}
+            onChange={(e) => setPeriode(e.target.value)}
+            className="bg-white border border-slate-200 rounded-md px-4 py-2 text-sm"
+          >
+            <option value="Oktober 2023">Oktober 2023</option>
+            <option value="September 2023">September 2023</option>
+          </select>
+        </div>
       </div>
 
       {/* Summary Cards */}

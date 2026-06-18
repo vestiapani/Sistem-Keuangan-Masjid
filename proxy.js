@@ -29,6 +29,18 @@ export async function proxy(request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  
+  let role = null;
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    role = profile?.role;
+  }
 
   const { pathname } = request.nextUrl;
 
