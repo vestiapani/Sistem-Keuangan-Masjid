@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Bell, HelpCircle } from "lucide-react";
+import { Bell, HelpCircle, Menu } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-export default function Navbar() {
+export default function Navbar({ onMenuClick = () => {} }) {
   const [showNotif, setShowNotif] = useState(false);
   const [latestNotifs, setLatestNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +71,6 @@ export default function Navbar() {
   useEffect(() => {
     loadNotifs();
 
-    // Realtime subscription untuk donasis & pengeluarans
     const supabase = createClient();
     const channel = supabase
       .channel("navbar-notif")
@@ -100,13 +99,20 @@ export default function Navbar() {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10">
-      {/* Nama Masjid */}
-      <h2 className="text-lg font-bold text-[#0F4C3A]">Masjid Al-Ikhlas</h2>
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 z-10 shrink-0">
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 rounded-md shrink-0"
+        >
+          <Menu size={20} />
+        </button>
+        <h2 className="text-base sm:text-lg font-bold text-[#0F4C3A] truncate">
+          Masjid Al-Ikhlas
+        </h2>
+      </div>
 
-      {/* Right: Notif + Help + Avatar */}
-      <div className="flex items-center space-x-4">
-        {/* Notifikasi */}
+      <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
         <div className="relative">
           <button
             onClick={handleOpenNotif}
@@ -119,7 +125,7 @@ export default function Navbar() {
           </button>
 
           {showNotif && (
-            <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-lg shadow-lg py-2 z-50">
+            <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto mt-2 sm:w-72 bg-white border border-slate-200 rounded-lg shadow-lg py-2 z-50">
               <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
                 <span className="font-bold text-sm text-slate-800">
                   Notifikasi Baru
@@ -162,18 +168,16 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Bantuan */}
         <Link
           href="/bantuan"
-          className="p-2 text-slate-400 hover:text-slate-600"
+          className="hidden xs:block p-2 text-slate-400 hover:text-slate-600"
         >
           <HelpCircle size={20} />
         </Link>
 
-        {/* Avatar */}
         <Link
           href="/pengaturan"
-          className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border border-slate-300"
+          className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border border-slate-300 shrink-0"
         >
           <img
             src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"

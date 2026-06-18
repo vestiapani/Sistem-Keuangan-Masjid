@@ -58,7 +58,7 @@ export default function VerifikasiPage() {
     const isVerify = status === "verified";
 
     toast(
-      <div className="space-y-3">
+      <div className="bg-white rounded-xl shadow-xl ring-1 ring-slate-200 p-4 space-y-3 w-full">
         <p className="text-sm font-semibold text-slate-800">
           {isVerify ? "Verifikasi donasi ini?" : "Tolak donasi ini?"}
         </p>
@@ -107,13 +107,13 @@ export default function VerifikasiPage() {
           </button>
           <button
             onClick={() => toast.dismiss()}
-            className="px-3 py-1.5 rounded text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="px-3 py-1.5 rounded text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 bg-white"
           >
             Batal
           </button>
         </div>
       </div>,
-      { duration: Infinity },
+      { duration: Infinity, unstyled: true },
     );
   };
 

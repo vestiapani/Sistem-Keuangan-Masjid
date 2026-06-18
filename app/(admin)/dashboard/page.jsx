@@ -174,34 +174,34 @@ export default function DashboardPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-end mb-8">
-        <div>
-          <h3 className="text-2xl font-bold text-slate-900">
-            Ringkasan Keuangan
-          </h3>
-          <p className="text-sm text-slate-500 mt-1">Periode: {periode}</p>
-        </div>
-        <div className="flex space-x-3">
-          <select
-            value={periode}
-            onChange={(e) => setPeriode(e.target.value)}
-            className="bg-white border border-slate-200 text-sm rounded-md px-3 py-2 outline-none"
-          >
-            <option value="Oktober 2023">Bulan Ini (Okt 2023)</option>
-            <option value="September 2023">Bulan Lalu (Sep 2023)</option>
-          </select>
-          <Link href="/pengeluaran">
-            <Button variant="outline" className="bg-white">
-              <Minus size={16} className="mr-2" /> Input Pengeluaran
-            </Button>
-          </Link>
-          <Link href="/donasi?new=1">
-            <Button className="bg-[#0F4C3A] text-white">
-              <Plus size={16} className="mr-2" /> Tambah Donasi
-            </Button>
-          </Link>
-        </div>
-      </div>
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8">
+  <div>
+    <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
+      Ringkasan Keuangan
+    </h3>
+    <p className="text-sm text-slate-500 mt-1">Periode: {periode}</p>
+  </div>
+  <div className="flex flex-wrap gap-2 sm:gap-3">
+    <select
+      value={periode}
+      onChange={(e) => setPeriode(e.target.value)}
+      className="bg-white border border-slate-200 text-sm rounded-md px-3 py-2 outline-none"
+    >
+      <option value="Oktober 2023">Bulan Ini (Okt 2023)</option>
+      <option value="September 2023">Bulan Lalu (Sep 2023)</option>
+    </select>
+    <Link href="/pengeluaran">
+      <Button variant="outline" className="bg-white whitespace-nowrap">
+        <Minus size={16} className="mr-2" /> Input Pengeluaran
+      </Button>
+    </Link>
+    <Link href="/donasi?new=1">
+      <Button className="bg-[#0F4C3A] text-white whitespace-nowrap">
+        <Plus size={16} className="mr-2" /> Tambah Donasi
+      </Button>
+    </Link>
+  </div>
+</div>
 
       {/* Summary Cards */}
       {loading ? (
@@ -252,34 +252,34 @@ export default function DashboardPage() {
 
       {/* Chart + Transaksi Terakhir */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-        {/* Chart statis */}
-        <Card className="lg:col-span-2">
-          <div className="p-6 border-b">
-            <h3 className="font-bold">Tren Arus Kas (6 Bulan)</h3>
+  {/* Chart card */}
+  <Card className="lg:col-span-2">
+    <div className="p-4 sm:p-6 border-b">
+      <h3 className="font-bold">Tren Arus Kas (6 Bulan)</h3>
+    </div>
+    <CardContent className="p-4 sm:p-6">
+      <div className="h-56 sm:h-64 flex items-end justify-between gap-1 sm:gap-2 overflow-x-auto">
+        {["Mei", "Jun", "Jul", "Agt", "Sep", "Okt"].map((m, i) => (
+          <div
+            key={m}
+            className="flex flex-col items-center justify-end h-full w-8 sm:w-12 shrink-0"
+          >
+            <div
+              className={`w-7 sm:w-10 rounded-sm ${
+                i === 3
+                  ? "bg-[#1E4B3E]"
+                  : i === 5
+                    ? "bg-[#A7F3D0]"
+                    : "bg-[#D3E4FD]"
+              }`}
+              style={{ height: `${[35, 55, 25, 75, 45, 65][i]}%` }}
+            />
+            <span className="text-[10px] sm:text-[11px] text-slate-500 mt-2 sm:mt-3">{m}</span>
           </div>
-          <CardContent className="p-6">
-            <div className="h-64 flex items-end justify-between px-2">
-              {["Mei", "Jun", "Jul", "Agt", "Sep", "Okt"].map((m, i) => (
-                <div
-                  key={m}
-                  className="flex flex-col items-center justify-end h-full w-12"
-                >
-                  <div
-                    className={`w-10 rounded-sm ${
-                      i === 3
-                        ? "bg-[#1E4B3E]"
-                        : i === 5
-                          ? "bg-[#A7F3D0]"
-                          : "bg-[#D3E4FD]"
-                    }`}
-                    style={{ height: `${[35, 55, 25, 75, 45, 65][i]}%` }}
-                  />
-                  <span className="text-[11px] text-slate-500 mt-3">{m}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        ))}
+      </div>
+    </CardContent>
+  </Card>
         <Card>
           <div className="p-5 border-b">
             <h3 className="font-bold">Aktivitas Terbaru</h3>

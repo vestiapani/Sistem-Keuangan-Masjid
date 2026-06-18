@@ -29,7 +29,7 @@ export default function PengaturanPage() {
           </div>
           <div className="space-y-2 max-w-md">
             <label className="text-sm font-semibold">Nama Bendahara (Admin)</label>
-            <Input type="text" defaultValue="Fadhil" />
+            <Input type="text" defaultValue="Pani" />
           </div>
           <div className="space-y-2 max-w-md">
             <label className="text-sm font-semibold">Password Baru</label>

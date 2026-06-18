@@ -7,6 +7,15 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { submitDonasiPublik } from "@/lib/publik";
 import { uploadBuktiTransfer } from "@/lib/storage";
+import {
+  HandHeart,
+  User,
+  Mail,
+  Calendar,
+  Landmark,
+  Target,
+  ArrowRight
+} from "lucide-react";
 
 const REKENING_OPTIONS = [
   { value: "bsi-001", label: "BSI — 7123456789 (a.n. Masjid Al-Ikhlas)" },
@@ -180,9 +189,7 @@ export default function KonfirmasiDonasiPage() {
                     Nama Lengkap
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400 text-sm">
-                      👤
-                    </span>
+                    <User size={14} className="text-slate-400" />
                     <input
                       name="nama"
                       value={form.nama}
@@ -199,9 +206,7 @@ export default function KonfirmasiDonasiPage() {
                     Email / No. WhatsApp
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400 text-sm">
-                      📧
-                    </span>
+                    <Mail size={14} className="text-slate-400" />
                     <input
                       name="kontak"
                       value={form.kontak}
@@ -218,9 +223,7 @@ export default function KonfirmasiDonasiPage() {
                     Tanggal Transfer
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400 text-sm">
-                      📅
-                    </span>
+                    <Calendar size={14} className="text-slate-400" />
                     <input
                       type="date"
                       name="tanggal"
@@ -258,9 +261,7 @@ export default function KonfirmasiDonasiPage() {
                     Rekening Tujuan
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400 text-sm">
-                      🏦
-                    </span>
+                    <Landmark size={14} className="text-slate-400" />
                     <select
                       name="rekening"
                       value={form.rekening}
@@ -283,9 +284,7 @@ export default function KonfirmasiDonasiPage() {
                     Program Donasi
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400 text-sm">
-                      🎯
-                    </span>
+                    <Target size={14} className="text-slate-400" />
                     <select
                       name="program"
                       value={form.program}
@@ -377,7 +376,7 @@ export default function KonfirmasiDonasiPage() {
                   ) : (
                     <>
                       <span>Kirim Konfirmasi</span>
-                      <span>➤</span>
+                      <ArrowRight size={14}/>
                     </>
                   )}
                 </button>
@@ -398,20 +397,20 @@ export default function KonfirmasiDonasiPage() {
                 {
                   step: 1,
                   title: "Lakukan Transfer",
-                  icon: "🏦",
+                  icon: <Landmark size={14} className="text-slate-400" />,
                   desc: "Transfer ke salah satu rekening resmi masjid yang tertera.",
                   active: true,
                 },
                 {
                   step: 2,
                   title: "Isi Formulir",
-                  icon: "📄",
+                  icon: <MessageCircle size={16} className="text-[#0F4C3A]" />,
                   desc: "Lengkapi data diri dan unggah bukti transfer pada form di samping.",
                 },
                 {
                   step: 3,
                   title: "Verifikasi",
-                  icon: "✅",
+                  icon: <CheckCircle2 size={16} className="text-[#0F4C3A]" />,
                   desc: "Admin akan memverifikasi donasi Anda (1×24 jam kerja).",
                 },
               ].map(({ step, title, icon, desc, active }) => (
@@ -449,7 +448,7 @@ export default function KonfirmasiDonasiPage() {
               Hubungi admin keuangan jika ada kendala saat konfirmasi.
             </p>
             <button className="text-sm text-amber-700 font-semibold hover:underline flex items-center space-x-1">
-              <span>💬</span>
+              <MessageCircle size={16} className="text-[#0F4C3A]" />
               <span>Chat WhatsApp</span>
             </button>
           </div>

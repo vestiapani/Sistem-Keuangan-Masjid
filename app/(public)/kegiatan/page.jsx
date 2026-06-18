@@ -7,7 +7,7 @@ import { Plus, Clock, MapPin } from "lucide-react";
 const KEGIATAN_DATA = [
   {
     id: 1,
-    tanggal: "10 akt",
+    tanggal: "10 Okt",
     kategori: "Kajian Rutin",
     kategoriBadge: "bg-slate-100 text-slate-600",
     waktu: "19:30 WIB",
@@ -21,11 +21,11 @@ const KEGIATAN_DATA = [
       "border border-slate-300 text-slate-700 bg-white hover:bg-slate-50",
     image:
       "https://images.unsplash.com/photo-1564769662533-4f00a87b4056?w=400&q=80",
-    badge: { text: "10 å kt", bg: "bg-orange-500" },
+    badge: { text: "10 Okt", bg: "bg-orange-500" },
   },
   {
     id: 2,
-    tanggal: "15 akt",
+    tanggal: "15 Okt",
     kategori: "Sosial & Pemuda",
     kategoriBadge: "bg-orange-100 text-orange-700",
     waktu: "07:00 WIB",
@@ -38,11 +38,11 @@ const KEGIATAN_DATA = [
     statusBg: "bg-[#0F4C3A] text-white hover:bg-[#0A3629]",
     image:
       "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80",
-    badge: { text: "15 å kt", bg: "bg-orange-500" },
+    badge: { text: "15 Okt", bg: "bg-orange-500" },
   },
   {
     id: 3,
-    tanggal: "22 akt",
+    tanggal: "22 Okt",
     kategori: "Edukasi",
     kategoriBadge: "bg-amber-100 text-amber-700",
     waktu: null,
@@ -55,7 +55,7 @@ const KEGIATAN_DATA = [
     statusBg: "bg-slate-100 text-slate-500 cursor-not-allowed",
     image:
       "https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=400&q=80",
-    badge: { text: "22 å kt", bg: "bg-orange-500" },
+    badge: { text: "22  Okt", bg: "bg-orange-500" },
     kuotaPenuh: true,
   },
 ];
@@ -187,16 +187,16 @@ export default function KegiatanPage() {
             {filtered.map((kegiatan) => (
               <div
                 key={kegiatan.id}
-                className="bg-white border border-slate-200 rounded-xl overflow-hidden flex"
+                className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col sm:flex-row"
               >
                 {/* Image */}
-                <div className="relative w-48 shrink-0">
+                <div className="relative w-full h-44 sm:w-48 sm:h-auto shrink-0">
                   <img
                     src={kegiatan.image}
                     alt={kegiatan.judul}
                     className="w-full h-full object-cover"
                   />
-                  <span className="absolute top-3 left-3 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                  <span className="absolute top-3 left-3 bg-[#C8932E] text-white text-xs px-2 py-0.5 rounded-full font-medium">
                     {kegiatan.badge.text}
                   </span>
                 </div>

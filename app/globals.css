@@ -94,3 +94,9 @@
     color: var(--color-foreground);
   }
 }
+
+/* === Aksen dekoratif sederhana (tanpa font eksternal) === */
+.pattern-dots {
+  background-image: radial-gradient(rgba(15, 76, 58, 0.12) 1px, transparent 1px);
+  background-size: 16px 16px;
+}

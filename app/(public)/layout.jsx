@@ -3,11 +3,19 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import {
+  Bell,
+  ArrowDownRight,
+  ArrowUpRight,
+  Menu,
+  X,
+  Moon,
+  HandHeart,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const navLinks = [
-  { name: "Home", href: "/beranda" },
+  { name: "Beranda", href: "/beranda" },
   { name: "Jadwal Sholat", href: "/jadwal-sholat" },
   { name: "Laporan Keuangan", href: "/laporan-keuangan" },
   { name: "Kegiatan", href: "/kegiatan" },
@@ -16,6 +24,7 @@ const navLinks = [
 function PublicNavbar() {
   const pathname = usePathname();
   const [showNotif, setShowNotif] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasNew, setHasNew] = useState(false);
@@ -95,31 +104,40 @@ function PublicNavbar() {
     return () => supabase.removeChannel(channel);
   }, [loadNotifs]);
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   const handleBell = () => {
     setShowNotif(!showNotif);
     if (!showNotif) setHasNew(false);
   };
 
   return (
-    <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <header className="sticky top-0 z-50 bg-white border-b border-slate-100 shadow-sm">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="text-[#0F4C3A] font-bold text-xl">
-          Masjid Al-Ikhlas
+        <Link href="/beranda" className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl bg-[#0F4C3A] flex items-center justify-center text-white shrink-0">
+            <Moon size={18} />
+          </div>
+          <span className="font-bold text-[#0F4C3A] text-lg sm:text-xl">
+            Masjid Al-Ikhlas
+          </span>
         </Link>
 
-        {/* Nav Links */}
-        <nav className="hidden md:flex items-center space-x-6 text-sm">
+        {/* Nav Links - desktop */}
+        <nav className="hidden lg:flex items-center space-x-7 text-sm">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
             return (
               <Link
                 key={link.name}
                 href={link.href}
-                className={`transition-colors pb-0.5 ${
+                className={`relative transition-colors pb-1 ${
                   isActive
-                    ? "text-[#0F4C3A] font-semibold border-b-2 border-[#0F4C3A]"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "text-[#0F4C3A] font-semibold after:absolute after:left-0 after:right-0 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-[#0F4C3A]"
+                    : "text-slate-600 hover:text-[#0F4C3A]"
                 }`}
               >
                 {link.name}
@@ -128,136 +146,218 @@ function PublicNavbar() {
           })}
         </nav>
 
-        {/* Right: Bell only */}
-        <div className="relative">
-          <button
-            onClick={handleBell}
-            className="p-2 text-slate-400 hover:text-slate-600 relative"
+        {/* Right: Bell + Donasi CTA + mobile toggle */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link
+            href="/laporan-keuangan/konfirmasi-donasi"
+            className="hidden sm:inline-flex items-center gap-1.5 bg-[#0F4C3A] hover:bg-[#0A3629] text-white px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
           >
-            <Bell size={20} />
-            {hasNew && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
-            )}
-          </button>
+            <HandHeart size={14} />
+            <span>Donasi</span>
+          </Link>
 
-          {showNotif && (
-            <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                <p className="text-sm font-bold text-slate-800">
-                  Transaksi Terbaru
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Update keuangan masjid real-time
-                </p>
-              </div>
-
-              {loading ? (
-                <div className="p-6 text-center text-sm text-slate-400">
-                  Memuat...
-                </div>
-              ) : notifs.length === 0 ? (
-                <div className="p-6 text-center text-sm text-slate-400">
-                  Belum ada transaksi terbaru.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-50">
-                  {notifs.map((n) => (
-                    <div
-                      key={n.id}
-                      className="flex items-center space-x-3 px-4 py-3 hover:bg-slate-50"
-                    >
-                      <div
-                        className={`p-1.5 rounded-full shrink-0 ${
-                          n.type === "masuk"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-rose-50 text-rose-500"
-                        }`}
-                      >
-                        {n.type === "masuk" ? (
-                          <ArrowDownRight size={14} />
-                        ) : (
-                          <ArrowUpRight size={14} />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 truncate">
-                          {n.desc}
-                        </p>
-                        <p className="text-xs text-slate-400">
-                          {n.label} · {n.date}
-                        </p>
-                      </div>
-                      <span
-                        className={`text-xs font-bold shrink-0 ${
-                          n.type === "masuk"
-                            ? "text-emerald-600"
-                            : "text-rose-500"
-                        }`}
-                      >
-                        {n.type === "masuk" ? "+" : "-"}
-                        {formatRp(n.amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+          <div className="relative">
+            <button
+              onClick={handleBell}
+              className="p-2 text-slate-400 hover:text-[#0F4C3A] relative rounded-full hover:bg-slate-50"
+            >
+              <Bell size={19} />
+              {hasNew && (
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#0F4C3A] border-2 border-white rounded-full" />
               )}
+            </button>
 
-              <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
-                <Link
-                  href="/laporan-keuangan"
-                  onClick={() => setShowNotif(false)}
-                  className="block text-center text-xs font-semibold text-[#0F4C3A] hover:underline"
-                >
-                  Lihat Laporan Lengkap →
-                </Link>
+            {showNotif && (
+              <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-80 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
+                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                  <p className="text-sm font-bold text-slate-800">
+                    Transaksi Terbaru
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Update keuangan masjid real-time
+                  </p>
+                </div>
+
+                {loading ? (
+                  <div className="p-6 text-center text-sm text-slate-400">
+                    Memuat...
+                  </div>
+                ) : notifs.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-slate-400">
+                    Belum ada transaksi terbaru.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-50 max-h-80 overflow-y-auto">
+                    {notifs.map((n) => (
+                      <div
+                        key={n.id}
+                        className="flex items-center space-x-3 px-4 py-3 hover:bg-slate-50"
+                      >
+                        <div
+                          className={`p-1.5 rounded-full shrink-0 ${
+                            n.type === "masuk"
+                              ? "bg-emerald-50 text-emerald-600"
+                              : "bg-rose-50 text-rose-500"
+                          }`}
+                        >
+                          {n.type === "masuk" ? (
+                            <ArrowDownRight size={14} />
+                          ) : (
+                            <ArrowUpRight size={14} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-800 truncate">
+                            {n.desc}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {n.label} · {n.date}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-xs font-bold shrink-0 ${
+                            n.type === "masuk"
+                              ? "text-emerald-600"
+                              : "text-rose-500"
+                          }`}
+                        >
+                          {n.type === "masuk" ? "+" : "-"}
+                          {formatRp(n.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
+                  <Link
+                    href="/laporan-keuangan"
+                    onClick={() => setShowNotif(false)}
+                    className="block text-center text-xs font-semibold text-[#0F4C3A] hover:underline"
+                  >
+                    Lihat Laporan Lengkap
+                  </Link>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          <button
+            onClick={() => setMobileOpen((v) => !v)}
+            className="lg:hidden p-2 text-slate-500 hover:text-[#0F4C3A] rounded-md"
+          >
+            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
         </div>
       </div>
+
+      {mobileOpen && (
+        <nav className="lg:hidden border-t border-slate-100 px-4 py-3 space-y-1 bg-white">
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.name}
+                href={link.href}
+                className={`block px-3 py-2.5 rounded-lg text-sm font-medium ${
+                  isActive
+                    ? "bg-[#0F4C3A]/10 text-[#0F4C3A] font-semibold"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {link.name}
+              </Link>
+            );
+          })}
+          <Link
+            href="/laporan-keuangan/konfirmasi-donasi"
+            className="flex items-center justify-center gap-1.5 bg-[#0F4C3A] text-white px-4 py-2.5 rounded-lg text-sm font-semibold mt-2"
+          >
+            <HandHeart size={16} />
+            <span>Donasi Sekarang</span>
+          </Link>
+        </nav>
+      )}
     </header>
   );
 }
 
 function PublicFooter() {
   return (
-    <footer className="bg-white border-t border-slate-100 mt-16">
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <span className="text-[#0F4C3A] font-bold text-lg">
-              Masjid Al-Ikhlas
-            </span>
-            <p className="text-xs text-slate-400 mt-1">
-              © 2024 Masjid Al-Ikhlas. Amanah & Transparan.
-            </p>
+    <footer className="bg-[#0A2A20] text-emerald-50 mt-16">
+      <div className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-2">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+              <Moon size={16} />
+            </div>
+            <span className="font-bold text-lg">Masjid Al-Ikhlas</span>
           </div>
-          <div className="flex items-center space-x-6 text-sm text-slate-500">
-            <Link
-              href="/tentang"
-              className="hover:text-slate-700 underline underline-offset-2"
-            >
-              Tentang Kami
-            </Link>
-            <Link
-              href="/kebijakan-privasi"
-              className="hover:text-slate-700 underline underline-offset-2"
-            >
-              Kebijakan Privasi
-            </Link>
-            <Link
-              href="/kontak"
-              className="hover:text-slate-700 underline underline-offset-2"
-            >
-              Kontak
-            </Link>
-            <Link
-              href="/laporan-keuangan/konfirmasi-donasi"
-              className="hover:text-slate-700 underline underline-offset-2 text-[#0F4C3A] font-medium"
-            >
-              Donasi
-            </Link>
-          </div>
+          <p className="text-sm text-emerald-200/80 max-w-sm">
+            Mengelola amanah umat dengan transparan dan akuntabel. Setiap rupiah
+            yang masuk dan keluar dapat dipantau langsung oleh jamaah.
+          </p>
+        </div>
+
+        <div>
+          <h4 className="font-semibold text-sm mb-3 text-white">Navigasi</h4>
+          <ul className="space-y-2 text-sm text-emerald-200/80">
+            {navLinks.map((l) => (
+              <li key={l.name}>
+                <Link
+                  href={l.href}
+                  className="hover:text-white transition-colors"
+                >
+                  {l.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-semibold text-sm mb-3 text-white">Lainnya</h4>
+          <ul className="space-y-2 text-sm text-emerald-200/80">
+            <li>
+              <Link
+                href="/"
+                className="hover:text-white transition-colors"
+              >
+                Tentang Kami
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/"
+                className="hover:text-white transition-colors"
+              >
+                Kebijakan Privasi
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/"
+                className="hover:text-white transition-colors"
+              >
+                Kontak
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/laporan-keuangan/konfirmasi-donasi"
+                className="text-white font-medium hover:text-emerald-200 transition-colors"
+              >
+                Donasi
+              </Link>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10">
+        <div className="max-w-6xl mx-auto px-6 py-4 text-center text-xs text-emerald-200/60">
+          © {new Date().getFullYear()} Masjid Al-Ikhlas. Amanah & Transparan
+          untuk Umat.
         </div>
       </div>
     </footer>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { HandHeart } from "lucide-react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -85,18 +86,14 @@ export default function LaporanKeuanganPage() {
     <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
       {/* Header */}
       <div className="space-y-3">
-        <h1 className="text-4xl font-bold text-slate-800">
+        <h1 className="[font-family:var(--font-display)] text-3xl sm:text-4xl font-bold text-slate-800">
           Transparansi Keuangan
         </h1>
-        <p className="text-slate-500 max-w-xl">
-          Amanah umat adalah prioritas kami. Laporan berikut menyajikan rincian
-          pemasukan dan pengeluaran masjid secara terbuka dan akuntabel.
-        </p>
         <Link
           href="/laporan-keuangan/konfirmasi-donasi"
-          className="inline-flex items-center space-x-2 bg-[#8B4513] hover:bg-[#7a3b10] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+          className="inline-flex items-center space-x-2 bg-[#C8932E] hover:bg-[#B07F22] text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors"
         >
-          <span>🤲</span>
+          <HandHeart size={16} />
           <span>Donasi Sekarang</span>
         </Link>
       </div>
@@ -221,48 +218,52 @@ export default function LaporanKeuanganPage() {
               ))}
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs text-slate-500">
-                  <th className="text-left px-6 py-3">Tanggal</th>
-                  <th className="text-left px-4 py-3">Kategori</th>
-                  <th className="text-left px-4 py-3">Keterangan</th>
-                  <th className="text-right px-6 py-3">Jumlah</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transaksi.map((t, i) => (
-                  <tr
-                    key={i}
-                    className="border-b border-slate-50 hover:bg-slate-50"
-                  >
-                    <td className="px-6 py-3 text-slate-500 whitespace-nowrap">
-                      {t.tanggal}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          CATEGORY_COLORS[t.kategori] ||
-                          "bg-slate-100 text-slate-600"
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
+                <thead>
+                  <tr className="border-b border-slate-100 text-xs text-slate-500">
+                    <th className="text-left px-6 py-3">Tanggal</th>
+                    <th className="text-left px-4 py-3">Kategori</th>
+                    <th className="text-left px-4 py-3">Keterangan</th>
+                    <th className="text-right px-6 py-3">Jumlah</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transaksi.map((t, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-slate-50 hover:bg-slate-50"
+                    >
+                      <td className="px-6 py-3 text-slate-500 whitespace-nowrap">
+                        {t.tanggal}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            CATEGORY_COLORS[t.kategori] ||
+                            "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {t.kategori}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {t.keterangan}
+                      </td>
+                      <td
+                        className={`px-6 py-3 text-right font-semibold ${
+                          t.tipe === "masuk"
+                            ? "text-emerald-600"
+                            : "text-rose-600"
                         }`}
                       >
-                        {t.kategori}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{t.keterangan}</td>
-                    <td
-                      className={`px-6 py-3 text-right font-semibold ${
-                        t.tipe === "masuk"
-                          ? "text-emerald-600"
-                          : "text-rose-600"
-                      }`}
-                    >
-                      {t.tipe === "masuk" ? "+" : "-"} {formatRp(t.jumlah)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        {t.tipe === "masuk" ? "+" : "-"} {formatRp(t.jumlah)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           <div className="px-6 py-4 border-t border-slate-100 text-center">
