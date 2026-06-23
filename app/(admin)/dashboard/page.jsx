@@ -2,12 +2,16 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, Plus, Minus } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Plus,
+  Minus,
+  TrendingUp,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
-import { periodeToDateRange } from "@/lib/dashboard";
 import {
   ResponsiveContainer,
   LineChart,
@@ -18,129 +22,29 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
-
-import { getMonthlyCashflow } from "@/lib/dashboard";
+import {
+  getDashboardData,
+  getMonthlyCashflow,
+  getNotifikasiTerbaru,
+  generatePeriodeOptions,
+} from "@/lib/dashboard";
 
 export default function DashboardPage() {
-  const now = new Date();
-
-  const [periode, setPeriode] = useState(
-    now.toLocaleString("id-ID", {
-      month: "long",
-      year: "numeric",
-    }),
-  );
-  
-  const actionLabel = {
-    CREATE_DONATION: "Menambah Donasi",
-    UPDATE_DONATION: "Mengubah Donasi",
-    DELETE_DONATION: "Menghapus Donasi",
-    VERIFY_DONATION: "Memverifikasi Donasi",
-
-    CREATE_EXPENSE: "Menambah Pengeluaran",
-    UPDATE_EXPENSE: "Mengubah Pengeluaran",
-    DELETE_EXPENSE: "Menghapus Pengeluaran",
-  };
+  const periodeOptions = generatePeriodeOptions(24);
+  const [periode, setPeriode] = useState(periodeOptions[0]);
   const [data, setData] = useState(null);
-  const [activities, setActivities] = useState([]);
+  const [chartData, setChartData] = useState([]);
+  const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(true);
 
-  const formatRp = (angka) => new Intl.NumberFormat("id-ID").format(angka ?? 0);
+  const formatRp = (n) => new Intl.NumberFormat("id-ID").format(n ?? 0);
 
-  const loadData = useCallback(async () => {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { startDate, endDate } = periodeToDateRange(periode);
-
-      const [
-        { data: donasiAll, error: e1 },
-        { data: pengeluaranAll, error: e2 },
-        { data: activityLogs, error: e3 },
-      ] = await Promise.all([
-        supabase
-          .from("donasis")
-          .select(
-            "id, jumlah_dana, tanggal_donasi, nama_donatur, kategori, created_at",
-          )
-          .eq("status_verifikasi", "verified")
-          .order("tanggal_donasi", { ascending: false }),
-
-        supabase
-          .from("pengeluarans")
-          .select(
-            "id, jumlah_pengeluaran, tanggal_pengeluaran, keperluan, kategori, created_at",
-          )
-          .order("tanggal_pengeluaran", { ascending: false }),
-
-        supabase
-          .from("activity_logs")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
-
-      if (e1) throw e1;
-      if (e2) throw e2;
-      if (e3) throw e3;
-
-      const donasiPeriode = (donasiAll ?? []).filter(
-        (d) => d.tanggal_donasi >= startDate && d.tanggal_donasi <= endDate,
-      );
-      const pengeluaranPeriode = (pengeluaranAll ?? []).filter(
-        (p) =>
-          p.tanggal_pengeluaran >= startDate &&
-          p.tanggal_pengeluaran <= endDate,
-      );
-
-      const totalMasukPeriode = donasiPeriode.reduce(
-        (acc, d) => acc + d.jumlah_dana,
-        0,
-      );
-      const totalKeluarPeriode = pengeluaranPeriode.reduce(
-        (acc, p) => acc + p.jumlah_pengeluaran,
-        0,
-      );
-      const totalMasukAll = (donasiAll ?? []).reduce(
-        (acc, d) => acc + d.jumlah_dana,
-        0,
-      );
-      const totalKeluarAll = (pengeluaranAll ?? []).reduce(
-        (acc, p) => acc + p.jumlah_pengeluaran,
-        0,
-      );
-      const saldoKasSekarang = totalMasukAll - totalKeluarAll;
-
-      const transaksiTerakhir = [
-        ...donasiPeriode.map((d) => ({
-          id: `donasi-${d.id}`,
-          desc: d.nama_donatur,
-          date: d.tanggal_donasi,
-          amount: d.jumlah_dana,
-          type: "Pemasukan",
-          cat: d.kategori,
-          created_at: d.created_at,
-        })),
-        ...pengeluaranPeriode.map((p) => ({
-          id: `pengeluaran-${p.id}`,
-          desc: p.keperluan,
-          date: p.tanggal_pengeluaran,
-          amount: p.jumlah_pengeluaran,
-          type: "Pengeluaran",
-          cat: p.kategori,
-          created_at: p.created_at,
-        })),
-      ]
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 5);
-
-      setActivities(activityLogs ?? []);
-      setData({
-        saldoKasSekarang,
-        totalMasukPeriode,
-        totalKeluarPeriode,
-        transaksiTerakhir,
-      });
+      const result = await getDashboardData(periode);
+      setData(result);
     } catch (err) {
       console.error(err);
       toast.error("Gagal memuat data dashboard.");
@@ -149,59 +53,105 @@ export default function DashboardPage() {
     }
   }, [periode]);
 
-  useEffect(() => {
-    loadData();
+  const loadChart = useCallback(async () => {
+    setChartLoading(true);
+    try {
+      const result = await getMonthlyCashflow();
+      setChartData(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setChartLoading(false);
+    }
+  }, []);
 
-    // Realtime: auto-refresh ketika ada insert/update di donasis atau pengeluarans
+  const loadNotifs = useCallback(async () => {
+    try {
+      const result = await getNotifikasiTerbaru(5);
+      setNotifs(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    loadChart();
+    loadNotifs();
+  }, [loadChart, loadNotifs]);
+
+  // Realtime: subscribe ke notifikasis + donasis + pengeluarans
+  useEffect(() => {
+    const { createClient } = require("@/lib/supabase/client");
     const supabase = createClient();
+
     const channel = supabase
       .channel("dashboard-realtime")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "pengeluarans" },
-        loadData,
+        { event: "*", schema: "public", table: "donasis" },
+        () => {
+          loadDashboard();
+          loadChart();
+        },
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "activity_logs" },
-        loadData,
+        { event: "*", schema: "public", table: "pengeluarans" },
+        () => {
+          loadDashboard();
+          loadChart();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifikasis" },
+        () => {
+          loadNotifs();
+        },
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [loadData]);
+  }, [loadDashboard, loadChart, loadNotifs]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8">
-  <div>
-    <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
-      Ringkasan Keuangan
-    </h3>
-    <p className="text-sm text-slate-500 mt-1">Periode: {periode}</p>
-  </div>
-  <div className="flex flex-wrap gap-2 sm:gap-3">
-    <select
-      value={periode}
-      onChange={(e) => setPeriode(e.target.value)}
-      className="bg-white border border-slate-200 text-sm rounded-md px-3 py-2 outline-none"
-    >
-      <option value="Oktober 2023">Bulan Ini (Okt 2023)</option>
-      <option value="September 2023">Bulan Lalu (Sep 2023)</option>
-    </select>
-    <Link href="/pengeluaran">
-      <Button variant="outline" className="bg-white whitespace-nowrap">
-        <Minus size={16} className="mr-2" /> Input Pengeluaran
-      </Button>
-    </Link>
-    <Link href="/donasi?new=1">
-      <Button className="bg-[#0F4C3A] text-white whitespace-nowrap">
-        <Plus size={16} className="mr-2" /> Tambah Donasi
-      </Button>
-    </Link>
-  </div>
-</div>
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
+        <div>
+          <h3 className="text-2xl font-bold text-slate-900">
+            Ringkasan Keuangan
+          </h3>
+          <p className="text-sm text-slate-500 mt-1">Periode: {periode}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={periode}
+            onChange={(e) => setPeriode(e.target.value)}
+            className="bg-white border border-slate-200 text-sm rounded-md px-3 py-2 outline-none"
+          >
+            {periodeOptions.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+          <Link href="/pengeluaran">
+            <Button variant="outline" className="bg-white">
+              <Minus size={16} className="mr-2" /> Input Pengeluaran
+            </Button>
+          </Link>
+          <Link href="/donasi?new=1">
+            <Button className="bg-[#0F4C3A] text-white">
+              <Plus size={16} className="mr-2" /> Tambah Donasi
+            </Button>
+          </Link>
+        </div>
+      </div>
 
       {/* Summary Cards */}
       {loading ? (
@@ -219,7 +169,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card>
             <CardContent className="p-6">
-              <h4 className="text-3xl font-bold">
+              <h4 className="text-3xl font-bold text-slate-900">
                 Rp {formatRp(data?.saldoKasSekarang)}
               </h4>
               <p className="text-xs text-slate-500 uppercase mt-2">
@@ -229,86 +179,94 @@ export default function DashboardPage() {
           </Card>
           <Card>
             <CardContent className="p-6">
-              <h4 className="text-3xl font-bold">
+              <h4 className="text-3xl font-bold text-[#0F4C3A]">
                 Rp {formatRp(data?.totalMasukPeriode)}
               </h4>
               <p className="text-xs text-slate-500 uppercase mt-2">
-                Donasi Bulan Ini
+                Donasi {periode}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              <h4 className="text-3xl font-bold">
+              <h4 className="text-3xl font-bold text-rose-600">
                 Rp {formatRp(data?.totalKeluarPeriode)}
               </h4>
               <p className="text-xs text-slate-500 uppercase mt-2">
-                Pengeluaran Bulan Ini
+                Pengeluaran {periode}
               </p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Chart + Transaksi Terakhir */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-  {/* Chart card */}
-  <Card className="lg:col-span-2">
-    <div className="p-4 sm:p-6 border-b">
-      <h3 className="font-bold">Tren Arus Kas (6 Bulan)</h3>
-    </div>
-    <CardContent className="p-4 sm:p-6">
-      <div className="h-56 sm:h-64 flex items-end justify-between gap-1 sm:gap-2 overflow-x-auto">
-        {["Mei", "Jun", "Jul", "Agt", "Sep", "Okt"].map((m, i) => (
-          <div
-            key={m}
-            className="flex flex-col items-center justify-end h-full w-8 sm:w-12 shrink-0"
-          >
-            <div
-              className={`w-7 sm:w-10 rounded-sm ${
-                i === 3
-                  ? "bg-[#1E4B3E]"
-                  : i === 5
-                    ? "bg-[#A7F3D0]"
-                    : "bg-[#D3E4FD]"
-              }`}
-              style={{ height: `${[35, 55, 25, 75, 45, 65][i]}%` }}
-            />
-            <span className="text-[10px] sm:text-[11px] text-slate-500 mt-2 sm:mt-3">{m}</span>
+      {/* Chart + Transaksi + Notif */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recharts Line Chart */}
+        <Card className="lg:col-span-2">
+          <div className="p-5 border-b flex items-center justify-between">
+            <h3 className="font-bold">Tren Arus Kas (6 Bulan)</h3>
+            <TrendingUp size={16} className="text-slate-400" />
           </div>
-        ))}
-      </div>
-    </CardContent>
-  </Card>
-        <Card>
-          <div className="p-5 border-b">
-            <h3 className="font-bold">Aktivitas Terbaru</h3>
-          </div>
-
-          <CardContent className="p-0">
-            {activities.length === 0 ? (
-              <div className="p-6 text-sm text-slate-400 text-center">
-                Belum ada aktivitas.
+          <CardContent className="p-4">
+            {chartLoading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-sm text-slate-400">Memuat chart...</div>
               </div>
             ) : (
-              activities.map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-center justify-between p-4 border-b last:border-0"
+              <ResponsiveContainer width="100%" height={256}>
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
                 >
-                  <div>
-                    <p className="text-sm font-medium">
-                      {actionLabel[log.action] ?? log.action}
-                    </p>
-
-                    <p className="text-xs text-slate-500">{log.table_name}</p>
-                  </div>
-
-                  <span className="text-xs text-slate-400">
-                    {new Date(log.created_at).toLocaleDateString("id-ID")}
-                  </span>
-                </div>
-              ))
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="bulan"
+                    tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) =>
+                      v >= 1000000
+                        ? `${(v / 1000000).toFixed(1)}jt`
+                        : `${(v / 1000).toFixed(0)}rb`
+                    }
+                  />
+                  <Tooltip
+                    formatter={(value) => [`Rp ${formatRp(value)}`, ""]}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="pemasukan"
+                    name="Pemasukan"
+                    stroke="#0F4C3A"
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: "#0F4C3A" }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="pengeluaran"
+                    name="Pengeluaran"
+                    stroke="#f43f5e"
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: "#f43f5e" }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
@@ -318,7 +276,7 @@ export default function DashboardPage() {
           <div className="p-5 border-b flex items-center justify-between">
             <h3 className="font-bold">Transaksi Terakhir</h3>
             <button
-              onClick={loadData}
+              onClick={loadDashboard}
               className="text-xs text-slate-400 hover:text-slate-600"
             >
               ↻ Refresh
@@ -331,7 +289,7 @@ export default function DashboardPage() {
               </div>
             ) : !data?.transaksiTerakhir?.length ? (
               <div className="p-6 text-sm text-slate-400 text-center">
-                Belum ada transaksi.
+                Belum ada transaksi di periode ini.
               </div>
             ) : (
               data.transaksiTerakhir.map((item) => (
@@ -354,7 +312,9 @@ export default function DashboardPage() {
                       )}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">{item.desc}</p>
+                      <p className="text-sm font-semibold truncate max-w-[120px]">
+                        {item.desc}
+                      </p>
                       <p className="text-xs text-slate-500">{item.date}</p>
                     </div>
                   </div>
@@ -365,11 +325,68 @@ export default function DashboardPage() {
                         : "text-rose-600"
                     }`}
                   >
-                    {item.type === "Pemasukan" ? "+" : "-"}{" "}
+                    {item.type === "Pemasukan" ? "+" : "-"}
                     {formatRp(item.amount)}
                   </span>
                 </div>
               ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Notifikasi Terbaru */}
+        <Card className="lg:col-span-3">
+          <div className="p-5 border-b flex items-center justify-between">
+            <h3 className="font-bold">Aktivitas Terbaru</h3>
+            <Link
+              href="/notifikasi"
+              className="text-xs text-[#0F4C3A] hover:underline"
+            >
+              Lihat Semua
+            </Link>
+          </div>
+          <CardContent className="p-0">
+            {notifs.length === 0 ? (
+              <div className="p-6 text-sm text-slate-400 text-center">
+                Belum ada aktivitas.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                {notifs.slice(0, 3).map((n) => (
+                  <div key={n.id} className="p-4 flex items-start space-x-3">
+                    <div
+                      className={`p-2 rounded-full shrink-0 ${
+                        n.tipe === "pengeluaran_baru"
+                          ? "bg-rose-50 text-rose-500"
+                          : "bg-[#E8F3F0] text-[#0F4C3A]"
+                      }`}
+                    >
+                      {n.tipe === "pengeluaran_baru" ? (
+                        <ArrowUpRight size={14} />
+                      ) : (
+                        <ArrowDownRight size={14} />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800">
+                        {n.judul}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {n.pesan}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {new Date(n.created_at).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>

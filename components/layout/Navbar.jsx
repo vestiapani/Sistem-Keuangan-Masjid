@@ -4,63 +4,20 @@ import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Bell, HelpCircle, Menu } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getNotifikasiTerbaru, markAllNotifAsRead } from "@/lib/dashboard";
 
 export default function Navbar({ onMenuClick = () => {} }) {
   const [showNotif, setShowNotif] = useState(false);
-  const [latestNotifs, setLatestNotifs] = useState([]);
+  const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
-
-  const formatRp = (angka) => new Intl.NumberFormat("id-ID").format(angka);
 
   const loadNotifs = useCallback(async () => {
     setLoading(true);
     try {
-      const supabase = createClient();
-
-      const [{ data: donasis }, { data: pengeluarans }] = await Promise.all([
-        supabase
-          .from("donasis")
-          .select(
-            "id, jumlah_dana, tanggal_donasi, nama_donatur, kategori, created_at",
-          )
-          .eq("status_verifikasi", "verified")
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("pengeluarans")
-          .select(
-            "id, jumlah_pengeluaran, tanggal_pengeluaran, keperluan, kategori, created_at",
-          )
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
-
-      const combined = [
-        ...(donasis ?? []).map((d) => ({
-          id: `donasi-${d.id}`,
-          type: "Pemasukan",
-          cat: d.kategori,
-          desc: d.nama_donatur,
-          amount: d.jumlah_dana,
-          date: d.tanggal_donasi,
-          created_at: d.created_at,
-        })),
-        ...(pengeluarans ?? []).map((p) => ({
-          id: `pengeluaran-${p.id}`,
-          type: "Pengeluaran",
-          cat: p.kategori,
-          desc: p.keperluan,
-          amount: p.jumlah_pengeluaran,
-          date: p.tanggal_pengeluaran,
-          created_at: p.created_at,
-        })),
-      ]
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 5);
-
-      setLatestNotifs(combined);
-      setUnreadCount(combined.length);
+      const data = await getNotifikasiTerbaru(8);
+      setNotifs(data);
+      setUnreadCount(data.filter((n) => !n.is_read).length);
     } catch (err) {
       console.error(err);
     } finally {
@@ -73,29 +30,34 @@ export default function Navbar({ onMenuClick = () => {} }) {
 
     const supabase = createClient();
     const channel = supabase
-      .channel("navbar-notif")
+      .channel("navbar-notif-realtime")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "donasis" },
-        loadNotifs,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "pengeluarans" },
-        loadNotifs,
+        { event: "INSERT", schema: "public", table: "notifikasis" },
+        () => loadNotifs(),
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [loadNotifs]);
 
-  const handleOpenNotif = () => {
-    setShowNotif(!showNotif);
-    if (!showNotif) {
+  const handleOpenNotif = async () => {
+    setShowNotif((v) => !v);
+    if (!showNotif && unreadCount > 0) {
+      await markAllNotifAsRead();
       setUnreadCount(0);
+      setNotifs((prev) => prev.map((n) => ({ ...n, is_read: true })));
     }
+  };
+
+  const tipeIcon = (tipe) => {
+    if (tipe === "pengeluaran_baru") return "↑";
+    return "↓";
+  };
+
+  const tipeColor = (tipe) => {
+    if (tipe === "pengeluaran_baru") return "text-rose-500";
+    return "text-[#0F4C3A]";
   };
 
   return (
@@ -119,16 +81,16 @@ export default function Navbar({ onMenuClick = () => {} }) {
             className="p-2 text-slate-400 hover:text-slate-600 relative"
           >
             <Bell size={20} />
-            {!loading && unreadCount > 0 && (
+            {unreadCount > 0 && (
               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" />
             )}
           </button>
 
           {showNotif && (
-            <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto mt-2 sm:w-72 bg-white border border-slate-200 rounded-lg shadow-lg py-2 z-50">
-              <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
+            <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto mt-2 sm:w-80 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                 <span className="font-bold text-sm text-slate-800">
-                  Notifikasi Baru
+                  Notifikasi
                 </span>
                 <button
                   onClick={loadNotifs}
@@ -139,31 +101,57 @@ export default function Navbar({ onMenuClick = () => {} }) {
               </div>
 
               {loading ? (
-                <div className="p-4 text-sm text-slate-400">Memuat...</div>
-              ) : latestNotifs.length === 0 ? (
-                <div className="p-4 text-sm text-slate-500">
-                  Belum ada transaksi.
+                <div className="p-4 text-sm text-slate-400 text-center">
+                  Memuat...
+                </div>
+              ) : notifs.length === 0 ? (
+                <div className="p-4 text-sm text-slate-500 text-center">
+                  Belum ada notifikasi.
                 </div>
               ) : (
-                latestNotifs.map((t) => (
-                  <div
-                    key={t.id}
-                    className="p-4 text-sm text-slate-600 border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
-                  >
-                    {t.type === "Pemasukan"
-                      ? `${t.cat} masuk: ${t.desc} — Rp ${formatRp(t.amount)}`
-                      : `Pengeluaran ${t.cat}: ${t.desc} — Rp ${formatRp(t.amount)}`}
-                  </div>
-                ))
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                  {notifs.map((n) => (
+                    <div
+                      key={n.id}
+                      className={`p-4 text-sm hover:bg-slate-50 flex items-start space-x-3 ${
+                        !n.is_read ? "bg-emerald-50/40" : ""
+                      }`}
+                    >
+                      <span
+                        className={`font-bold text-base shrink-0 ${tipeColor(n.tipe)}`}
+                      >
+                        {tipeIcon(n.tipe)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-800 text-xs">
+                          {n.judul}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">
+                          {n.pesan}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {new Date(n.created_at).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
 
-              <Link
-                href="/notifikasi"
-                onClick={() => setShowNotif(false)}
-                className="block px-4 py-2 text-center text-sm font-semibold text-[#0F4C3A] hover:underline"
-              >
-                Lihat Semua Notifikasi
-              </Link>
+              <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">
+                <Link
+                  href="/notifikasi"
+                  onClick={() => setShowNotif(false)}
+                  className="block text-center text-xs font-semibold text-[#0F4C3A] hover:underline"
+                >
+                  Lihat Semua Notifikasi →
+                </Link>
+              </div>
             </div>
           )}
         </div>
