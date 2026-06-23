@@ -2,79 +2,99 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { HandHeart } from "lucide-react";
 import {
+  HandHeart,
   ArrowDownRight,
   ArrowUpRight,
   Download,
   Filter,
   Wallet,
 } from "lucide-react";
-import { getRingkasanPublik } from "@/lib/publik";
-
-// Program donasi statis dulu (nanti dari DB)
-const PROGRAMS = [
-  {
-    name: "Pembangunan Menara",
-    target: 500000000,
-    terkumpul: 375000000,
-    persen: 75,
-  },
-  {
-    name: "Operasional Harian",
-    target: 20000000,
-    targetLabel: "Rp 20.000.000/bln",
-    terkumpul: 9000000,
-    persen: 45,
-  },
-];
-
-// Laporan PDF statis dulu
-const PDF_REPORTS = [
-  { label: "Laporan Oktober 2024", size: "2.4 MB" },
-  { label: "Laporan September 2024", size: "2.1 MB" },
-];
+import { getRingkasanPublik, getProgramDonasi } from "@/lib/publik";
+import { generateLaporanPDF } from "@/lib/laporan-pdf";
 
 const CATEGORY_COLORS = {
   Infaq: "bg-emerald-100 text-emerald-700",
+  Infak: "bg-emerald-100 text-emerald-700",
   Zakat: "bg-blue-100 text-blue-700",
   Sedekah: "bg-teal-100 text-teal-700",
-  Maintenance: "bg-slate-100 text-slate-600",
-  Social: "bg-orange-100 text-orange-700",
+  Wakaf: "bg-purple-100 text-purple-700",
+  operasional: "bg-slate-100 text-slate-600",
+  pemeliharaan: "bg-orange-100 text-orange-700",
+  kegiatan: "bg-amber-100 text-amber-700",
+  insentif: "bg-pink-100 text-pink-700",
 };
+
+// Program donasi diambil dari Supabase (tabel program_donasis)
+// Jika belum ada tabel tersebut, fallback ke data statis
+const PROGRAMS_FALLBACK = [
+  {
+    id: 1,
+    nama: "Pembangunan Menara",
+    target: 500000000,
+    terkumpul: 375000000,
+    deskripsi: "Dana pembangunan menara masjid setinggi 30 meter.",
+    aktif: true,
+  },
+  {
+    id: 2,
+    nama: "Operasional Harian",
+    target: 20000000,
+    terkumpul: 9000000,
+    deskripsi: "Biaya operasional bulanan masjid (listrik, air, kebersihan).",
+    aktif: true,
+  },
+];
 
 export default function LaporanKeuanganPage() {
   const [data, setData] = useState(null);
+  const [programs, setPrograms] = useState(PROGRAMS_FALLBACK);
   const [loading, setLoading] = useState(true);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [filterTipe, setFilterTipe] = useState("Semua");
 
   const formatRp = (n) => "Rp " + new Intl.NumberFormat("id-ID").format(n ?? 0);
   const formatRpShort = (n) => {
     if (!n) return "Rp 0";
-    if (n >= 1000000) return `Rp ${(n / 1000000).toFixed(3).replace(".", ".")}`;
+    if (n >= 1000000000) return `Rp ${(n / 1000000000).toFixed(2)} M`;
+    if (n >= 1000000)
+      return `Rp ${(n / 1000000).toFixed(3).replace(/\.?0+$/, "")} Jt`;
     return "Rp " + new Intl.NumberFormat("id-ID").format(n);
   };
 
   useEffect(() => {
-    getRingkasanPublik()
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const load = async () => {
+      try {
+        const [ringkasan, prog] = await Promise.allSettled([
+          getRingkasanPublik(),
+          getProgramDonasi(),
+        ]);
+        if (ringkasan.status === "fulfilled") setData(ringkasan.value);
+        if (prog.status === "fulfilled" && prog.value?.length > 0)
+          setPrograms(prog.value);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
 
-  // Gabung transaksi untuk tampilan
-  const transaksi = data
+  // Gabung & filter transaksi
+  const transaksiAll = data
     ? [
-        ...data.donasis.slice(0, 3).map((d) => ({
+        ...data.donasis.map((d) => ({
           tanggal: d.tanggal_donasi,
-          kategori: d.kategori,
+          kategori: d.kategori || "Infak",
           keterangan:
             d.nama_donatur + (d.keterangan ? ` — ${d.keterangan}` : ""),
           jumlah: d.jumlah_dana,
           tipe: "masuk",
         })),
-        ...data.pengeluarans.slice(0, 2).map((p) => ({
+        ...data.pengeluarans.map((p) => ({
           tanggal: p.tanggal_pengeluaran,
-          kategori: p.kategori || "Maintenance",
+          kategori: p.kategori || "operasional",
           keterangan: p.keperluan,
           jumlah: p.jumlah_pengeluaran,
           tipe: "keluar",
@@ -82,29 +102,66 @@ export default function LaporanKeuanganPage() {
       ].sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal))
     : [];
 
+  const transaksiFiltred =
+    filterTipe === "Semua"
+      ? transaksiAll.slice(0, 20)
+      : transaksiAll.filter((t) => t.tipe === filterTipe).slice(0, 20);
+
+  // Generate & download PDF dari data real
+  const handleDownloadPDF = async () => {
+    if (!data) return;
+    setPdfLoading(true);
+    try {
+      await generateLaporanPDF({
+        totalMasuk: data.totalMasuk,
+        totalKeluar: data.totalKeluar,
+        saldo: data.saldo,
+        transaksi: transaksiAll,
+      });
+    } catch (err) {
+      console.error("PDF error:", err);
+      alert("Gagal mengunduh PDF. Silakan coba lagi.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-10 space-y-10">
       {/* Header */}
-      <div className="space-y-3">
-        <h1 className="[font-family:var(--font-display)] text-3xl sm:text-4xl font-bold text-slate-800">
-          Transparansi Keuangan
-        </h1>
-        <Link
-          href="/laporan-keuangan/konfirmasi-donasi"
-          className="inline-flex items-center space-x-2 bg-[#C8932E] hover:bg-[#B07F22] text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors"
-        >
-          <HandHeart size={16} />
-          <span>Donasi Sekarang</span>
-        </Link>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800">
+            Transparansi Keuangan
+          </h1>
+          <p className="text-slate-500 text-sm">
+            Laporan keuangan masjid yang terbuka dan dapat diakses seluruh
+            jamaah.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleDownloadPDF}
+            disabled={pdfLoading || loading || !data}
+            className="flex items-center gap-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            <Download size={15} />
+            {pdfLoading ? "Menyiapkan..." : "Unduh PDF"}
+          </button>
+          <Link
+            href="/laporan-keuangan/konfirmasi-donasi"
+            className="inline-flex items-center space-x-2 bg-[#C8932E] hover:bg-[#B07F22] text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors"
+          >
+            <HandHeart size={16} />
+            <span>Donasi Sekarang</span>
+          </Link>
+        </div>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Total Pemasukan */}
         <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <p className="text-xs text-slate-500 mb-2">
-            Total Pemasukan Bulan Ini
-          </p>
+          <p className="text-xs text-slate-500 mb-2">Total Pemasukan</p>
           {loading ? (
             <div className="h-9 bg-slate-100 rounded animate-pulse" />
           ) : (
@@ -119,11 +176,8 @@ export default function LaporanKeuanganPage() {
           )}
         </div>
 
-        {/* Total Pengeluaran */}
         <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <p className="text-xs text-slate-500 mb-2">
-            Total Pengeluaran Bulan Ini
-          </p>
+          <p className="text-xs text-slate-500 mb-2">Total Pengeluaran</p>
           {loading ? (
             <div className="h-9 bg-slate-100 rounded animate-pulse" />
           ) : (
@@ -138,7 +192,6 @@ export default function LaporanKeuanganPage() {
           )}
         </div>
 
-        {/* Saldo */}
         <div className="bg-[#0F4C3A] rounded-xl p-6">
           <p className="text-xs text-emerald-300 mb-2">Saldo Akhir</p>
           {loading ? (
@@ -156,70 +209,132 @@ export default function LaporanKeuanganPage() {
         </div>
       </div>
 
-      {/* Program Donasi */}
+      {/* Program Donasi Aktif */}
       <div>
-        <h2 className="text-xl font-bold text-slate-800 mb-4">
-          Program Donasi Aktif
-        </h2>
+        <div className="flex items-end justify-between mb-4">
+          <h2 className="text-xl font-bold text-slate-800">
+            Program Donasi Aktif
+          </h2>
+          <Link
+            href="/laporan-keuangan/konfirmasi-donasi"
+            className="text-sm text-[#0F4C3A] font-semibold hover:underline"
+          >
+            Donasi untuk program ini →
+          </Link>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {PROGRAMS.map((prog) => (
-            <div
-              key={prog.name}
-              className="bg-white border border-slate-200 rounded-xl p-6"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h4 className="font-semibold text-slate-800">{prog.name}</h4>
-                  <p className="text-xs text-slate-500">
-                    Target: {prog.targetLabel || formatRp(prog.target)}
-                  </p>
-                </div>
-                <span className="text-lg font-bold text-slate-700">
-                  {prog.persen}%
-                </span>
-              </div>
-              {/* Progress bar */}
-              <div className="h-2 bg-slate-100 rounded-full my-3">
+          {programs
+            .filter((p) => p.aktif !== false)
+            .map((prog) => {
+              const persen =
+                prog.target > 0
+                  ? Math.min(
+                      100,
+                      Math.round((prog.terkumpul / prog.target) * 100),
+                    )
+                  : 0;
+              return (
                 <div
-                  className="h-2 bg-[#0F4C3A] rounded-full transition-all"
-                  style={{ width: `${prog.persen}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>Terkumpul: {formatRp(prog.terkumpul)}</span>
-                <button className="text-[#0F4C3A] font-semibold hover:underline">
-                  Detail
-                </button>
-              </div>
-            </div>
-          ))}
+                  key={prog.id}
+                  className="bg-white border border-slate-200 rounded-xl p-6 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0 pr-3">
+                      <h4 className="font-semibold text-slate-800">
+                        {prog.nama}
+                      </h4>
+                      {prog.deskripsi && (
+                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                          {prog.deskripsi}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-400 mt-1">
+                        Target: {formatRp(prog.target)}
+                      </p>
+                    </div>
+                    <span className="text-lg font-bold text-slate-700 shrink-0">
+                      {persen}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full my-3">
+                    <div
+                      className="h-2 bg-[#0F4C3A] rounded-full transition-all duration-500"
+                      style={{ width: `${persen}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>
+                      Terkumpul:{" "}
+                      <span className="font-semibold text-[#0F4C3A]">
+                        {formatRp(prog.terkumpul)}
+                      </span>
+                    </span>
+                    <span>
+                      Sisa:{" "}
+                      {formatRp(Math.max(0, prog.target - prog.terkumpul))}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </div>
 
-      {/* Transaksi & Sidebar */}
+      {/* Cara Berdonasi untuk Program */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+        <h3 className="font-bold text-slate-800 mb-2">
+          💡 Cara Berdonasi untuk Program Ini
+        </h3>
+        <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
+          <li>
+            Klik tombol <strong>"Donasi Sekarang"</strong> di atas.
+          </li>
+          <li>Pilih program donasi yang ingin Anda tuju di formulir.</li>
+          <li>Transfer ke rekening masjid dan upload bukti transfer.</li>
+          <li>Admin akan memverifikasi donasi Anda dalam 1×24 jam kerja.</li>
+          <li>
+            Setelah diverifikasi, donasi akan tercatat dan terlihat di laporan
+            ini.
+          </li>
+        </ol>
+      </div>
+
+      {/* Rincian Transaksi + Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Rincian Transaksi */}
+        {/* Tabel Transaksi */}
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <h3 className="font-bold text-slate-800">Rincian Transaksi</h3>
-            <button className="flex items-center space-x-1.5 text-xs border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50">
-              <Filter size={12} />
-              <span>Filter</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <Filter size={12} className="text-slate-400" />
+              <select
+                value={filterTipe}
+                onChange={(e) => setFilterTipe(e.target.value)}
+                className="text-xs border border-slate-200 rounded-lg px-2 py-1 outline-none"
+              >
+                <option value="Semua">Semua</option>
+                <option value="masuk">Pemasukan</option>
+                <option value="keluar">Pengeluaran</option>
+              </select>
+            </div>
           </div>
 
           {loading ? (
             <div className="p-6 space-y-3">
-              {[1, 2, 3].map((i) => (
+              {[1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
                   className="h-10 bg-slate-100 rounded animate-pulse"
                 />
               ))}
             </div>
+          ) : transaksiFiltred.length === 0 ? (
+            <div className="p-10 text-center text-sm text-slate-400">
+              Belum ada transaksi.
+            </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[560px]">
+              <table className="w-full text-sm min-w-[500px]">
                 <thead>
                   <tr className="border-b border-slate-100 text-xs text-slate-500">
                     <th className="text-left px-6 py-3">Tanggal</th>
@@ -229,12 +344,12 @@ export default function LaporanKeuanganPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {transaksi.map((t, i) => (
+                  {transaksiFiltred.map((t, i) => (
                     <tr
                       key={i}
                       className="border-b border-slate-50 hover:bg-slate-50"
                     >
-                      <td className="px-6 py-3 text-slate-500 whitespace-nowrap">
+                      <td className="px-6 py-3 text-slate-500 whitespace-nowrap text-xs">
                         {t.tanggal}
                       </td>
                       <td className="px-4 py-3">
@@ -247,7 +362,7 @@ export default function LaporanKeuanganPage() {
                           {t.kategori}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-700">
+                      <td className="px-4 py-3 text-slate-700 max-w-[200px] truncate">
                         {t.keterangan}
                       </td>
                       <td
@@ -266,69 +381,51 @@ export default function LaporanKeuanganPage() {
             </div>
           )}
 
-          <div className="px-6 py-4 border-t border-slate-100 text-center">
-            <button className="text-sm text-[#0F4C3A] font-semibold hover:underline">
-              Lihat Semua Transaksi
-            </button>
-          </div>
+          {!loading && transaksiAll.length > 20 && (
+            <div className="px-6 py-4 border-t border-slate-100 text-center text-xs text-slate-400">
+              Menampilkan 20 dari {transaksiAll.length} transaksi. Unduh PDF
+              untuk laporan lengkap.
+            </div>
+          )}
         </div>
 
-        {/* Right Sidebar */}
+        {/* Sidebar Unduh Laporan */}
         <div className="space-y-4">
-          {/* Tren Bulanan (statis) */}
+          {/* Tren Bulanan Sederhana */}
           <div className="bg-white border border-slate-200 rounded-xl p-6">
-            <h4 className="font-bold text-slate-800 mb-4">
-              Tren Keuangan Bulanan
-            </h4>
-            <div className="h-24 flex items-end justify-between gap-2">
-              {[
-                { m: "Jul", h: 40 },
-                { m: "Agt", h: 55 },
-                { m: "Sep", h: 45 },
-                { m: "Okt", h: 90, active: true },
-              ].map(({ m, h, active }) => (
-                <div key={m} className="flex flex-col items-center flex-1">
-                  <div
-                    className={`w-full rounded-sm ${active ? "bg-[#0F4C3A]" : "bg-slate-200"}`}
-                    style={{ height: `${h}%` }}
-                  />
-                  <span className="text-xs text-slate-500 mt-2">{m}</span>
-                </div>
-              ))}
-            </div>
+            <h4 className="font-bold text-slate-800 mb-4">Unduh Laporan</h4>
+            <p className="text-xs text-slate-500 mb-4">
+              Unduh laporan keuangan lengkap dalam format PDF yang mencakup
+              seluruh transaksi terverifikasi.
+            </p>
+            <button
+              onClick={handleDownloadPDF}
+              disabled={pdfLoading || loading || !data}
+              className="w-full flex items-center justify-center gap-2 bg-[#0F4C3A] hover:bg-[#0A3629] text-white px-4 py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              <Download size={16} />
+              {pdfLoading ? "Menyiapkan..." : "Unduh Laporan PDF"}
+            </button>
+            {!loading && data && (
+              <p className="text-xs text-slate-400 mt-2 text-center">
+                {transaksiAll.length} transaksi terverifikasi
+              </p>
+            )}
           </div>
 
-          {/* Download PDF */}
-          <div className="bg-white border border-slate-200 rounded-xl p-6">
-            <h4 className="font-bold text-slate-800 mb-4">
-              Unduh Laporan (PDF)
+          {/* Info Transparansi */}
+          <div className="bg-[#0F4C3A]/5 border border-[#0F4C3A]/20 rounded-xl p-5">
+            <h4 className="font-bold text-[#0F4C3A] mb-2 text-sm">
+              🔒 Komitmen Transparansi
             </h4>
-            <div className="space-y-3">
-              {PDF_REPORTS.map((r) => (
-                <div
-                  key={r.label}
-                  className="flex items-center justify-between hover:bg-slate-50 p-2 rounded-lg cursor-pointer group"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="p-1.5 bg-red-50 rounded">
-                      <span className="text-red-500 text-xs font-bold">
-                        PDF
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">
-                        {r.label}
-                      </p>
-                      <p className="text-xs text-slate-400">{r.size}</p>
-                    </div>
-                  </div>
-                  <Download
-                    size={16}
-                    className="text-slate-400 group-hover:text-[#0F4C3A] transition-colors"
-                  />
-                </div>
-              ))}
-            </div>
+            <ul className="text-xs text-slate-600 space-y-2">
+              <li>
+                ✓ Seluruh donasi terverifikasi admin sebelum masuk laporan
+              </li>
+              <li>✓ Laporan diperbarui secara real-time</li>
+              <li>✓ Setiap rupiah dapat dipertanggungjawabkan</li>
+              <li>✓ Audit internal dilakukan setiap bulan</li>
+            </ul>
           </div>
         </div>
       </div>

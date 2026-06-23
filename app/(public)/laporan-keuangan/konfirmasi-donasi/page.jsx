@@ -1,32 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Upload, CheckCircle2, MessageCircle } from "lucide-react";
-import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
-import { submitDonasiPublik } from "@/lib/publik";
-import { uploadBuktiTransfer } from "@/lib/storage";
 import {
+  Upload,
+  CheckCircle2,
+  MessageCircle,
   HandHeart,
   User,
   Mail,
   Calendar,
   Landmark,
   Target,
-  ArrowRight
+  ArrowRight,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
+import { submitDonasiPublik, getProgramDonasi } from "@/lib/publik";
+import { uploadBuktiTransfer } from "@/lib/storage";
 
 const REKENING_OPTIONS = [
   { value: "bsi-001", label: "BSI — 7123456789 (a.n. Masjid Al-Ikhlas)" },
   { value: "bni-002", label: "BNI — 0123456789 (a.n. Masjid Al-Ikhlas)" },
-];
-
-const PROGRAM_OPTIONS = [
-  { value: "pembangunan-menara", label: "Pembangunan Menara" },
-  { value: "operasional", label: "Operasional Harian" },
-  { value: "sosial", label: "Program Sosial" },
-  { value: "umum", label: "Donasi Umum" },
 ];
 
 export default function KonfirmasiDonasiPage() {
@@ -34,6 +30,8 @@ export default function KonfirmasiDonasiPage() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState(null);
+  const [programs, setPrograms] = useState([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
 
   const [form, setForm] = useState({
     nama: "",
@@ -41,9 +39,17 @@ export default function KonfirmasiDonasiPage() {
     tanggal: "",
     jumlah: "",
     rekening: "",
-    program: "",
+    program_id: "", // ID program donasi dari DB
     catatan: "",
   });
+
+  // Load program donasi dari DB
+  useEffect(() => {
+    getProgramDonasi()
+      .then((data) => setPrograms(data))
+      .catch(() => setPrograms([]))
+      .finally(() => setLoadingPrograms(false));
+  }, []);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -51,18 +57,15 @@ export default function KonfirmasiDonasiPage() {
   const handleFileChange = (e) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
-
     if (selected.size > 5 * 1024 * 1024) {
       toast.error("Ukuran file maksimal 5MB.");
       return;
     }
-
     const allowed = ["image/jpeg", "image/png", "application/pdf"];
     if (!allowed.includes(selected.type)) {
       toast.error("Format file harus JPG, PNG, atau PDF.");
       return;
     }
-
     setFile(selected);
   };
 
@@ -75,27 +78,41 @@ export default function KonfirmasiDonasiPage() {
 
     setLoading(true);
     try {
-      // Submit donasi dulu untuk dapat ID
-      const donasi = await submitDonasiPublik({
+      // Tentukan kategori berdasarkan program yang dipilih
+      const programTerpilih = programs.find(
+        (p) => String(p.id) === String(form.program_id),
+      );
+      const kategori = "Infak"; // default
+
+      // Payload donasi — status_verifikasi = 'pending' (menunggu admin)
+      const payload = {
         nama_donatur: form.nama || "Hamba Allah",
         tanggal_donasi: form.tanggal || new Date().toISOString().split("T")[0],
         jumlah_dana: parseInt(form.jumlah),
-        kategori: "Infak",
+        kategori,
         metode_pembayaran: "Transfer",
-        keterangan: form.catatan || null,
-      });
+        keterangan:
+          [
+            programTerpilih ? `Program: ${programTerpilih.nama}` : null,
+            form.catatan || null,
+          ]
+            .filter(Boolean)
+            .join(" | ") || null,
+        // Jika kolom program_donasi_id sudah ditambahkan ke tabel donasis:
+        // program_donasi_id: form.program_id ? parseInt(form.program_id) : null,
+      };
 
-      // Upload bukti kalau ada file
+      const donasi = await submitDonasiPublik(payload);
+
+      // Upload bukti transfer jika ada file
       if (file) {
         setUploading(true);
         const path = await uploadBuktiTransfer(file, donasi.id);
-
         const supabase = createClient();
         await supabase
           .from("donasis")
           .update({ bukti_transfer_url: path })
           .eq("id", donasi.id);
-
         setUploading(false);
       }
 
@@ -117,7 +134,7 @@ export default function KonfirmasiDonasiPage() {
       tanggal: "",
       jumlah: "",
       rekening: "",
-      program: "",
+      program_id: "",
       catatan: "",
     });
     setFile(null);
@@ -133,9 +150,15 @@ export default function KonfirmasiDonasiPage() {
           Konfirmasi Diterima!
         </h2>
         <p className="text-slate-500">
-          Jazakallahu khairan. Konfirmasi donasi Anda telah kami terima. Admin
-          akan memverifikasi dalam 1×24 jam kerja.
+          Jazakallahu khairan. Donasi Anda sudah kami terima dan sedang menunggu
+          verifikasi admin. Setelah diverifikasi (maks. 1×24 jam), donasi akan
+          tercatat dalam laporan keuangan masjid.
         </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+          <strong>Status donasi Anda: Menunggu Verifikasi</strong>
+          <br />
+          Admin akan menghubungi Anda jika diperlukan konfirmasi tambahan.
+        </div>
         <button
           onClick={handleReset}
           className="text-sm text-[#0F4C3A] hover:underline"
@@ -161,11 +184,19 @@ export default function KonfirmasiDonasiPage() {
         <span className="text-slate-800 font-medium">Konfirmasi Donasi</span>
       </nav>
 
+      {/* Banner info flow */}
+      <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex gap-3">
+        <HandHeart size={18} className="shrink-0 mt-0.5 text-blue-600" />
+        <div>
+          <strong>Alur Donasi:</strong> Isi formulir → Admin verifikasi (1×24
+          jam kerja) → Donasi masuk ke laporan keuangan masjid yang transparan.
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Form */}
         <div className="lg:col-span-2">
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            {/* Header */}
             <div className="flex items-center space-x-4 px-8 py-6 border-b border-slate-100">
               <div className="w-10 h-10 bg-[#0F4C3A] rounded-xl flex items-center justify-center">
                 <span className="text-white text-lg">🤲</span>
@@ -175,12 +206,11 @@ export default function KonfirmasiDonasiPage() {
                   Konfirmasi Donasi
                 </h1>
                 <p className="text-sm text-slate-500">
-                  Isi formulir di bawah ini setelah Anda melakukan transfer.
+                  Isi formulir setelah melakukan transfer bank.
                 </p>
               </div>
             </div>
 
-            {/* Form Body */}
             <form onSubmit={handleSubmit} className="p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Nama */}
@@ -189,7 +219,10 @@ export default function KonfirmasiDonasiPage() {
                     Nama Lengkap
                   </label>
                   <div className="relative">
-                    <User size={14} className="text-slate-400" />
+                    <User
+                      size={14}
+                      className="absolute left-3 top-3 text-slate-400"
+                    />
                     <input
                       name="nama"
                       value={form.nama}
@@ -203,10 +236,13 @@ export default function KonfirmasiDonasiPage() {
                 {/* Kontak */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700">
-                    Email / No. WhatsApp
+                    Email / WhatsApp
                   </label>
                   <div className="relative">
-                    <Mail size={14} className="text-slate-400" />
+                    <Mail
+                      size={14}
+                      className="absolute left-3 top-3 text-slate-400"
+                    />
                     <input
                       name="kontak"
                       value={form.kontak}
@@ -223,7 +259,10 @@ export default function KonfirmasiDonasiPage() {
                     Tanggal Transfer
                   </label>
                   <div className="relative">
-                    <Calendar size={14} className="text-slate-400" />
+                    <Calendar
+                      size={14}
+                      className="absolute left-3 top-3 text-slate-400"
+                    />
                     <input
                       type="date"
                       name="tanggal"
@@ -237,7 +276,7 @@ export default function KonfirmasiDonasiPage() {
                 {/* Jumlah */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700">
-                    Jumlah Donasi
+                    Jumlah Donasi *
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-slate-500 text-sm font-medium">
@@ -261,7 +300,10 @@ export default function KonfirmasiDonasiPage() {
                     Rekening Tujuan
                   </label>
                   <div className="relative">
-                    <Landmark size={14} className="text-slate-400" />
+                    <Landmark
+                      size={14}
+                      className="absolute left-3 top-3 text-slate-400"
+                    />
                     <select
                       name="rekening"
                       value={form.rekening}
@@ -278,26 +320,35 @@ export default function KonfirmasiDonasiPage() {
                   </div>
                 </div>
 
-                {/* Program */}
+                {/* Program Donasi — dari DB */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700">
                     Program Donasi
                   </label>
                   <div className="relative">
-                    <Target size={14} className="text-slate-400" />
-                    <select
-                      name="program"
-                      value={form.program}
-                      onChange={handleChange}
-                      className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#0F4C3A]/30 focus:border-[#0F4C3A] appearance-none bg-white"
-                    >
-                      <option value="">Pilih Program Donasi</option>
-                      {PROGRAM_OPTIONS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </select>
+                    <Target
+                      size={14}
+                      className="absolute left-3 top-3 text-slate-400"
+                    />
+                    {loadingPrograms ? (
+                      <div className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm text-slate-400 bg-slate-50">
+                        Memuat program...
+                      </div>
+                    ) : (
+                      <select
+                        name="program_id"
+                        value={form.program_id}
+                        onChange={handleChange}
+                        className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#0F4C3A]/30 focus:border-[#0F4C3A] appearance-none bg-white"
+                      >
+                        <option value="">Donasi Umum (Tidak Spesifik)</option>
+                        {programs.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nama}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
               </div>
@@ -311,10 +362,10 @@ export default function KonfirmasiDonasiPage() {
                   <label className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#0F4C3A]/40 hover:bg-slate-50 transition-colors">
                     <Upload size={24} className="text-slate-400 mb-2" />
                     <p className="text-sm font-medium text-slate-600">
-                      Upload file atau drag and drop
+                      Upload foto/screenshot bukti transfer
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
-                      PNG, JPG, PDF up to 5MB
+                      PNG, JPG, PDF — maks. 5MB
                     </p>
                     <input
                       type="file"
@@ -370,13 +421,19 @@ export default function KonfirmasiDonasiPage() {
                   className="flex items-center space-x-2 bg-[#0F4C3A] hover:bg-[#0A3629] text-white px-6 py-3 rounded-lg font-semibold text-sm transition-colors disabled:opacity-70"
                 >
                   {uploading ? (
-                    <span>Mengupload bukti...</span>
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Mengupload bukti...</span>
+                    </>
                   ) : loading ? (
-                    <span>Mengirim...</span>
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Mengirim...</span>
+                    </>
                   ) : (
                     <>
                       <span>Kirim Konfirmasi</span>
-                      <ArrowRight size={14}/>
+                      <ArrowRight size={14} />
                     </>
                   )}
                 </button>
@@ -387,7 +444,6 @@ export default function KonfirmasiDonasiPage() {
 
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Langkah Konfirmasi */}
           <div className="bg-white border border-slate-200 rounded-xl p-6">
             <h3 className="font-bold text-slate-800 mb-5">
               ⓘ Langkah Konfirmasi
@@ -397,37 +453,34 @@ export default function KonfirmasiDonasiPage() {
                 {
                   step: 1,
                   title: "Lakukan Transfer",
-                  icon: <Landmark size={14} className="text-slate-400" />,
-                  desc: "Transfer ke salah satu rekening resmi masjid yang tertera.",
+                  desc: "Transfer ke salah satu rekening resmi masjid.",
                   active: true,
                 },
                 {
                   step: 2,
                   title: "Isi Formulir",
-                  icon: <MessageCircle size={16} className="text-[#0F4C3A]" />,
-                  desc: "Lengkapi data diri dan unggah bukti transfer pada form di samping.",
+                  desc: "Lengkapi data dan upload bukti transfer.",
                 },
                 {
                   step: 3,
-                  title: "Verifikasi",
-                  icon: <CheckCircle2 size={16} className="text-[#0F4C3A]" />,
-                  desc: "Admin akan memverifikasi donasi Anda (1×24 jam kerja).",
+                  title: "Verifikasi Admin",
+                  desc: "Admin cek bukti dan verifikasi (maks. 1×24 jam kerja).",
                 },
-              ].map(({ step, title, icon, desc, active }) => (
+                {
+                  step: 4,
+                  title: "Masuk Laporan",
+                  desc: "Donasi tercatat di laporan keuangan publik masjid.",
+                },
+              ].map(({ step, title, desc, active }) => (
                 <div key={step} className="flex items-start space-x-3">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                      active
-                        ? "bg-[#0F4C3A] text-white"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${active ? "bg-[#0F4C3A] text-white" : "bg-slate-100 text-slate-500"}`}
                   >
                     {step}
                   </div>
                   <div className="bg-slate-50 rounded-xl p-3 flex-1">
-                    <p className="text-sm font-semibold text-slate-800 flex items-center space-x-1.5">
-                      <span>{icon}</span>
-                      <span>{title}</span>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {title}
                     </p>
                     <p className="text-xs text-slate-500 mt-1">{desc}</p>
                   </div>
@@ -436,7 +489,6 @@ export default function KonfirmasiDonasiPage() {
             </div>
           </div>
 
-          {/* Butuh Bantuan */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
             <div className="flex items-center space-x-2 mb-2">
               <MessageCircle size={16} className="text-amber-600" />
