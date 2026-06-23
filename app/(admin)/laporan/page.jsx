@@ -135,8 +135,11 @@ export default function LaporanPage() {
     try {
       await simpanLaporan({ periode, totalMasuk, totalKeluar, saldo: surplus });
       toast.success("Laporan berhasil disimpan.");
-    } catch {
-      toast.error("Gagal menyimpan laporan.");
+    } catch (err) {
+      console.error("Simpan laporan error:", err);
+      toast.error(
+        "Gagal menyimpan laporan: ",
+      );
     }
   };
 
