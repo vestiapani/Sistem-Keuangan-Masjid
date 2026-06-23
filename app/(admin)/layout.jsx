@@ -20,7 +20,18 @@ export default function AdminLayout({ children }) {
         </div>
       </main>
 
-      <Toaster position="top-right" />
+      <Toaster
+        position="top-right"
+        closeButton
+        toastOptions={{
+          classNames: {
+            toast:
+              "!bg-white/20 !backdrop-blur-sm !border !border-white/20 !shadow-sm !rounded-xl !",
+            closeButton:
+              "!absolute !top-4 !right-1 !left-auto !bg-white/50 !border-0 !rounded-full !text-slate-500 hover:!text-slate-800",
+          },
+        }}
+      />
     </div>
   );
 }

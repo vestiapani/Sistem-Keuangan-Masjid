@@ -38,11 +38,6 @@ const Toaster = ({
           "--border-radius": "var(--radius)"
         }
       }
-      toastOptions={{
-        classNames: {
-          toast: "cn-toast",
-        },
-      }}
       {...props} />
   );
 }

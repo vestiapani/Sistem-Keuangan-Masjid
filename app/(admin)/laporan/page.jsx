@@ -18,18 +18,13 @@ import {
   deletePengeluaran,
   updatePengeluaran,
 } from "@/lib/pengeluaran";
-import { periodeToDateRange } from "@/lib/dashboard";
+import { periodeToDateRange, generatePeriodeOptions,simpanLaporan } from "@/lib/dashboard";
 import ExportPdfButton from "@/components/laporan/ExportPdfButton";
+import { Button } from "@/components/ui/button";
 
 export default function LaporanPage() {
-  const now = new Date();
-
-  const [periode, setPeriode] = useState(
-    now.toLocaleString("id-ID", {
-      month: "long",
-      year: "numeric",
-    }),
-  );
+  const periodeOptions = generatePeriodeOptions(24);
+  const [periode, setPeriode] = useState(periodeOptions[0]);
   const [filter, setFilter] = useState("Semua");
   const [donasis, setDonasis] = useState([]);
   const [pengeluarans, setPengeluarans] = useState([]);
@@ -57,7 +52,9 @@ export default function LaporanPage() {
   }, []);
 
   // Filter berdasarkan periode
+  
   const { startDate, endDate } = periodeToDateRange(periode);
+  
 
   const donasisPeriode = donasis.filter(
     (d) => d.tanggal_donasi >= startDate && d.tanggal_donasi <= endDate,
@@ -134,6 +131,17 @@ export default function LaporanPage() {
     }
   };
 
+  const handleSimpanLaporan = async () => {
+    try {
+      await simpanLaporan({ periode, totalMasuk, totalKeluar, saldo: surplus });
+      toast.success("Laporan berhasil disimpan.");
+    } catch {
+      toast.error("Gagal menyimpan laporan.");
+    }
+  };
+
+  
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
@@ -143,6 +151,10 @@ export default function LaporanPage() {
         </h3>
 
         <div className="flex gap-3 ">
+          <Button onClick={handleSimpanLaporan} variant="outline">
+            Simpan Laporan
+          </Button>
+
           <ExportPdfButton
             periode={periode}
             totalMasuk={totalMasuk}
@@ -151,13 +163,12 @@ export default function LaporanPage() {
             rows={allRows}
           />
 
-          <select
-            value={periode}
-            onChange={(e) => setPeriode(e.target.value)}
-            className="bg-white border border-slate-200 rounded-md px-4 py-2 text-sm"
-          >
-            <option value="Oktober 2023">Oktober 2023</option>
-            <option value="September 2023">September 2023</option>
+          <select value={periode} onChange={(e) => setPeriode(e.target.value)}>
+            {periodeOptions.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
           </select>
         </div>
       </div>

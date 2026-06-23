@@ -30,7 +30,7 @@ export default function Navbar({ onMenuClick = () => {} }) {
 
     const supabase = createClient();
     const channel = supabase
-      .channel("navbar-notif-realtime")
+      .channel(`navbar-notif-${Date.now()}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifikasis" },
