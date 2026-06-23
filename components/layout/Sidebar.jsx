@@ -14,6 +14,7 @@ import {
   Plus,
   ShieldCheck,
   X,
+  CalendarDays
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -22,6 +23,7 @@ const menuItems = [
   { name: "Donasi Masuk", icon: WalletCards, href: "/donasi" },
   { name: "Verifikasi Donasi", icon: ShieldCheck, href: "/verifikasi" },
   { name: "Pengeluaran Kas", icon: CreditCard, href: "/pengeluaran" },
+  { name: "Manajemen Kegiatan", icon: CalendarDays , href: "/admin_kegiatan" },
   { name: "Laporan Keuangan", icon: FileBox, href: "/laporan" },
   { name: "Pengaturan", icon: Settings, href: "/pengaturan" },
 ];

@@ -19,7 +19,7 @@ export default function VerifikasiPage() {
   const [donasis, setDonasis] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("pending");
-  const [preview, setPreview] = useState(null); // { url, nama }
+  const [preview, setPreview] = useState(null);
 
   const formatRp = (n) => new Intl.NumberFormat("id-ID").format(n);
 
@@ -77,6 +77,13 @@ export default function VerifikasiPage() {
                 data: { user },
               } = await supabase.auth.getUser();
 
+              // Ambil data donasi sebelum update (untuk notifikasi)
+              const { data: donasiData } = await supabase
+                .from("donasis")
+                .select("nama_donatur, jumlah_dana, kategori")
+                .eq("id", id)
+                .single();
+
               const { error } = await supabase
                 .from("donasis")
                 .update({
@@ -94,6 +101,27 @@ export default function VerifikasiPage() {
                     ? "Donasi berhasil diverifikasi!"
                     : "Donasi ditolak.",
                 );
+
+                // Insert notifikasi
+                try {
+                  const formatRpLocal = (n) =>
+                    new Intl.NumberFormat("id-ID").format(n);
+                  await supabase.from("notifikasis").insert([
+                    {
+                      tipe: isVerify ? "donasi_diverifikasi" : "donasi_ditolak",
+                      judul: isVerify
+                        ? "Donasi Terverifikasi"
+                        : "Donasi Ditolak",
+                      pesan: isVerify
+                        ? `Donasi dari ${donasiData?.nama_donatur ?? "Donatur"} sebesar Rp ${formatRpLocal(donasiData?.jumlah_dana ?? 0)} telah diverifikasi`
+                        : `Donasi dari ${donasiData?.nama_donatur ?? "Donatur"} ditolak`,
+                      is_read: false,
+                    },
+                  ]);
+                } catch (notifErr) {
+                  console.warn("Gagal buat notifikasi:", notifErr);
+                }
+
                 loadData();
               }
             }}
