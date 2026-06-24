@@ -11,10 +11,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { getRingkasanPublik } from "@/lib/publik";
+import InfoMasjidPublik from "@/components/publik/InfoMasjidPublik";
 
-// Koordinat default Jakarta Pusat
 const DEFAULT_COORD = { lat: -6.2088, lng: 106.8456, nama: "Jakarta Pusat" };
-const METODE_ID = 20; // Kemenag RI
+const METODE_ID = 20;
 
 const WAKTU_TAMPIL = [
   { key: "Fajr", label: "Subuh" },
@@ -24,8 +24,6 @@ const WAKTU_TAMPIL = [
   { key: "Maghrib", label: "Maghrib" },
   { key: "Isha", label: "Isya" },
 ];
-
-const SHOLAT_KEYS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 
 function parseTime(raw) {
   if (!raw) return null;
@@ -39,10 +37,8 @@ function getWaktuAktif(timings) {
   if (!timings) return "Fajr";
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
-
   const SHOLAT_KEYS = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
   let aktif = "Fajr";
-
   for (let i = SHOLAT_KEYS.length - 1; i >= 0; i--) {
     const key = SHOLAT_KEYS[i];
     const t = timings[key];
@@ -90,7 +86,6 @@ function PrayerTimesBar() {
     fetchTimings();
   }, []);
 
-  // Update waktu aktif setiap menit
   useEffect(() => {
     if (!timings) return;
     const interval = setInterval(() => {
@@ -205,8 +200,8 @@ export default function BerandaPage() {
           </h1>
           <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-5 sm:px-6 py-4 max-w-xl mx-auto mb-7 border border-white/10">
             <p className="text-white/90 text-sm sm:text-base">
-              Selamat datang di Masjid At-Taqwa. Pusat informasi terpadu
-              yang Amanah & Transparan untuk seluruh jamaah.
+              Selamat datang di Masjid At-Taqwa. Pusat informasi terpadu yang
+              Amanah &amp; Transparan untuk seluruh jamaah.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -228,7 +223,7 @@ export default function BerandaPage() {
         </div>
       </section>
 
-      {/* Jadwal Sholat dari API */}
+      {/* Jadwal Sholat */}
       <PrayerTimesBar />
 
       {/* Transparansi Keuangan */}
@@ -306,7 +301,10 @@ export default function BerandaPage() {
         </div>
       </section>
 
-      {/* CTA Donasi banner */}
+      {/* Info Masjid dari DB */}
+      <InfoMasjidPublik />
+
+      {/* CTA Donasi */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-16">
         <div className="bg-[#0F4C3A] rounded-2xl px-6 sm:px-10 py-10 text-center sm:text-left sm:flex sm:items-center sm:justify-between gap-6">
           <div>
