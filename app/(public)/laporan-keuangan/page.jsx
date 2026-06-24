@@ -25,8 +25,6 @@ const CATEGORY_COLORS = {
   insentif: "bg-pink-100 text-pink-700",
 };
 
-// Program donasi diambil dari Supabase (tabel program_donasis)
-// Jika belum ada tabel tersebut, fallback ke data statis
 const PROGRAMS_FALLBACK = [
   {
     id: 1,
@@ -54,11 +52,11 @@ export default function LaporanKeuanganPage() {
   const [filterTipe, setFilterTipe] = useState("Semua");
 
   const formatRp = (n) => "Rp " + new Intl.NumberFormat("id-ID").format(n ?? 0);
+
   const formatRpShort = (n) => {
     if (!n) return "Rp 0";
     if (n >= 1000000000) return `Rp ${(n / 1000000000).toFixed(2)} M`;
-    if (n >= 1000000)
-      return `Rp ${(n / 1000000).toFixed(3).replace(/\.?0+$/, "")} Jt`;
+    if (n >= 1000000) return `Rp ${(n / 1000000).toFixed(2)} Jt`;
     return "Rp " + new Intl.NumberFormat("id-ID").format(n);
   };
 
@@ -81,14 +79,14 @@ export default function LaporanKeuanganPage() {
     load();
   }, []);
 
-  // Gabung & filter transaksi
+  // Gabung dan filter transaksi
   const transaksiAll = data
     ? [
         ...data.donasis.map((d) => ({
           tanggal: d.tanggal_donasi,
           kategori: d.kategori || "Infak",
           keterangan:
-            d.nama_donatur + (d.keterangan ? ` — ${d.keterangan}` : ""),
+            d.nama_donatur + (d.keterangan ? ` - ${d.keterangan}` : ""),
           jumlah: d.jumlah_dana,
           tipe: "masuk",
         })),
@@ -107,7 +105,6 @@ export default function LaporanKeuanganPage() {
       ? transaksiAll.slice(0, 20)
       : transaksiAll.filter((t) => t.tipe === filterTipe).slice(0, 20);
 
-  // Generate & download PDF dari data real
   const handleDownloadPDF = async () => {
     if (!data) return;
     setPdfLoading(true);
@@ -150,7 +147,7 @@ export default function LaporanKeuanganPage() {
           </button>
           <Link
             href="/laporan-keuangan/konfirmasi-donasi"
-            className="inline-flex items-center space-x-2 bg-[#C8932E] hover:bg-[#B07F22] text-white px-5 py-2.5 rounded-full text-sm font-semibold transition-colors"
+            className="inline-flex items-center space-x-2 bg-[#0F4C3A] hover:bg-[#0A3629] text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
           >
             <HandHeart size={16} />
             <span>Donasi Sekarang</span>
@@ -158,54 +155,72 @@ export default function LaporanKeuanganPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards — sama layout dengan admin dashboard */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Total Pemasukan */}
         <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <p className="text-xs text-slate-500 mb-2">Total Pemasukan</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">
+              Total Pemasukan
+            </p>
+            <div className="p-1.5 bg-emerald-50 rounded-lg">
+              <ArrowDownRight size={16} className="text-emerald-600" />
+            </div>
+          </div>
           {loading ? (
             <div className="h-9 bg-slate-100 rounded animate-pulse" />
           ) : (
-            <div className="flex items-center justify-between">
-              <h3 className="text-3xl font-bold text-slate-800">
-                {formatRpShort(data?.totalMasuk)}
-              </h3>
-              <div className="p-2 bg-emerald-50 rounded-lg">
-                <ArrowDownRight size={20} className="text-emerald-600" />
-              </div>
-            </div>
+            <h3 className="text-3xl font-bold text-slate-800">
+              {formatRpShort(data?.totalMasuk)}
+            </h3>
           )}
+          <p className="text-xs text-slate-400 mt-2">
+            Infaq, Zakat, Sedekah, Wakaf
+          </p>
         </div>
 
+        {/* Total Pengeluaran */}
         <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <p className="text-xs text-slate-500 mb-2">Total Pengeluaran</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wide">
+              Total Pengeluaran
+            </p>
+            <div className="p-1.5 bg-rose-50 rounded-lg">
+              <ArrowUpRight size={16} className="text-rose-500" />
+            </div>
+          </div>
           {loading ? (
             <div className="h-9 bg-slate-100 rounded animate-pulse" />
           ) : (
-            <div className="flex items-center justify-between">
-              <h3 className="text-3xl font-bold text-rose-600">
-                {formatRpShort(data?.totalKeluar)}
-              </h3>
-              <div className="p-2 bg-rose-50 rounded-lg">
-                <ArrowUpRight size={20} className="text-rose-500" />
-              </div>
-            </div>
+            <h3 className="text-3xl font-bold text-rose-600">
+              {formatRpShort(data?.totalKeluar)}
+            </h3>
           )}
+          <p className="text-xs text-slate-400 mt-2">
+            Operasional, Pemeliharaan, Kegiatan
+          </p>
         </div>
 
+        {/* Saldo Kas */}
         <div className="bg-[#0F4C3A] rounded-xl p-6">
-          <p className="text-xs text-emerald-300 mb-2">Saldo Akhir</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-emerald-300 uppercase tracking-wide">
+              Saldo Kas
+            </p>
+            <div className="p-1.5 bg-emerald-800/50 rounded-lg">
+              <Wallet size={16} className="text-emerald-300" />
+            </div>
+          </div>
           {loading ? (
             <div className="h-9 bg-emerald-800 rounded animate-pulse" />
           ) : (
-            <div className="flex items-center justify-between">
-              <h3 className="text-3xl font-bold text-white">
-                {formatRpShort(data?.saldo)}
-              </h3>
-              <div className="p-2 bg-emerald-800/50 rounded-lg">
-                <Wallet size={20} className="text-emerald-300" />
-              </div>
-            </div>
+            <h3 className="text-3xl font-bold text-white">
+              {formatRpShort(data?.saldo)}
+            </h3>
           )}
+          <p className="text-xs text-emerald-300/70 mt-2">
+            Total pemasukan dikurangi pengeluaran
+          </p>
         </div>
       </div>
 
@@ -219,7 +234,7 @@ export default function LaporanKeuanganPage() {
             href="/laporan-keuangan/konfirmasi-donasi"
             className="text-sm text-[#0F4C3A] font-semibold hover:underline"
           >
-            Donasi untuk program ini →
+            Donasi untuk program ini
           </Link>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -280,18 +295,18 @@ export default function LaporanKeuanganPage() {
         </div>
       </div>
 
-      {/* Cara Berdonasi untuk Program */}
+      {/* Cara Berdonasi */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
         <h3 className="font-bold text-slate-800 mb-2">
-          💡 Cara Berdonasi untuk Program Ini
+          Cara Berdonasi untuk Program Ini
         </h3>
         <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
           <li>
-            Klik tombol <strong>"Donasi Sekarang"</strong> di atas.
+            Klik tombol <strong>Donasi Sekarang</strong> di atas.
           </li>
           <li>Pilih program donasi yang ingin Anda tuju di formulir.</li>
           <li>Transfer ke rekening masjid dan upload bukti transfer.</li>
-          <li>Admin akan memverifikasi donasi Anda dalam 1×24 jam kerja.</li>
+          <li>Admin akan memverifikasi donasi Anda dalam 1x24 jam kerja.</li>
           <li>
             Setelah diverifikasi, donasi akan tercatat dan terlihat di laporan
             ini.
@@ -299,7 +314,7 @@ export default function LaporanKeuanganPage() {
         </ol>
       </div>
 
-      {/* Rincian Transaksi + Sidebar */}
+      {/* Rincian Transaksi + Sidebar — layout 2/3 + 1/3 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tabel Transaksi */}
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -389,9 +404,9 @@ export default function LaporanKeuanganPage() {
           )}
         </div>
 
-        {/* Sidebar Unduh Laporan */}
+        {/* Sidebar */}
         <div className="space-y-4">
-          {/* Tren Bulanan Sederhana */}
+          {/* Unduh Laporan */}
           <div className="bg-white border border-slate-200 rounded-xl p-6">
             <h4 className="font-bold text-slate-800 mb-4">Unduh Laporan</h4>
             <p className="text-xs text-slate-500 mb-4">
@@ -413,18 +428,36 @@ export default function LaporanKeuanganPage() {
             )}
           </div>
 
-          {/* Info Transparansi */}
+          {/* Komitmen Transparansi */}
           <div className="bg-[#0F4C3A]/5 border border-[#0F4C3A]/20 rounded-xl p-5">
-            <h4 className="font-bold text-[#0F4C3A] mb-2 text-sm">
-              🔒 Komitmen Transparansi
+            <h4 className="font-bold text-[#0F4C3A] mb-3 text-sm">
+              Komitmen Transparansi
             </h4>
             <ul className="text-xs text-slate-600 space-y-2">
-              <li>
-                ✓ Seluruh donasi terverifikasi admin sebelum masuk laporan
+              <li className="flex items-start gap-2">
+                <span className="text-[#0F4C3A] font-bold mt-0.5">
+                  &#10003;
+                </span>
+                Seluruh donasi terverifikasi admin sebelum masuk laporan
               </li>
-              <li>✓ Laporan diperbarui secara real-time</li>
-              <li>✓ Setiap rupiah dapat dipertanggungjawabkan</li>
-              <li>✓ Audit internal dilakukan setiap bulan</li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#0F4C3A] font-bold mt-0.5">
+                  &#10003;
+                </span>
+                Laporan diperbarui secara real-time
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#0F4C3A] font-bold mt-0.5">
+                  &#10003;
+                </span>
+                Setiap rupiah dapat dipertanggungjawabkan
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#0F4C3A] font-bold mt-0.5">
+                  &#10003;
+                </span>
+                Audit internal dilakukan setiap bulan
+              </li>
             </ul>
           </div>
         </div>

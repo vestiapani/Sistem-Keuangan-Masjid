@@ -14,6 +14,7 @@ import {
   Target,
   ArrowRight,
   Loader2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -21,9 +22,19 @@ import { submitDonasiPublik, getProgramDonasi } from "@/lib/publik";
 import { uploadBuktiTransfer } from "@/lib/storage";
 
 const REKENING_OPTIONS = [
-  { value: "bsi-001", label: "BSI — 7123456789 (a.n. Masjid Al-Ikhlas)" },
-  { value: "bni-002", label: "BNI — 0123456789 (a.n. Masjid Al-Ikhlas)" },
+  { value: "bsi-001", label: "BSI - 7123456789 (a.n. Masjid Al-Ikhlas)" },
+  { value: "bni-002", label: "BNI - 0123456789 (a.n. Masjid Al-Ikhlas)" },
 ];
+
+const EMPTY_FORM = {
+  nama: "",
+  kontak: "",
+  tanggal: "",
+  jumlah: "",
+  rekening: "",
+  program_id: "",
+  catatan: "",
+};
 
 export default function KonfirmasiDonasiPage() {
   const [step, setStep] = useState("form");
@@ -32,18 +43,8 @@ export default function KonfirmasiDonasiPage() {
   const [file, setFile] = useState(null);
   const [programs, setPrograms] = useState([]);
   const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [form, setForm] = useState(EMPTY_FORM);
 
-  const [form, setForm] = useState({
-    nama: "",
-    kontak: "",
-    tanggal: "",
-    jumlah: "",
-    rekening: "",
-    program_id: "", // ID program donasi dari DB
-    catatan: "",
-  });
-
-  // Load program donasi dari DB
   useEffect(() => {
     getProgramDonasi()
       .then((data) => setPrograms(data))
@@ -69,8 +70,7 @@ export default function KonfirmasiDonasiPage() {
     setFile(selected);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!form.jumlah || parseInt(form.jumlah) <= 0) {
       toast.error("Harap isi nominal donasi dengan benar.");
       return;
@@ -78,33 +78,27 @@ export default function KonfirmasiDonasiPage() {
 
     setLoading(true);
     try {
-      // Tentukan kategori berdasarkan program yang dipilih
       const programTerpilih = programs.find(
         (p) => String(p.id) === String(form.program_id),
       );
-      const kategori = "Infak"; // default
 
-      // Payload donasi — status_verifikasi = 'pending' (menunggu admin)
+      const keteranganParts = [
+        programTerpilih ? `Program: ${programTerpilih.nama}` : null,
+        form.catatan || null,
+      ].filter(Boolean);
+
       const payload = {
         nama_donatur: form.nama || "Hamba Allah",
         tanggal_donasi: form.tanggal || new Date().toISOString().split("T")[0],
         jumlah_dana: parseInt(form.jumlah),
-        kategori,
+        kategori: "Infak",
         metode_pembayaran: "Transfer",
         keterangan:
-          [
-            programTerpilih ? `Program: ${programTerpilih.nama}` : null,
-            form.catatan || null,
-          ]
-            .filter(Boolean)
-            .join(" | ") || null,
-        // Jika kolom program_donasi_id sudah ditambahkan ke tabel donasis:
-        // program_donasi_id: form.program_id ? parseInt(form.program_id) : null,
+          keteranganParts.length > 0 ? keteranganParts.join(" | ") : null,
       };
 
       const donasi = await submitDonasiPublik(payload);
 
-      // Upload bukti transfer jika ada file
       if (file) {
         setUploading(true);
         const path = await uploadBuktiTransfer(file, donasi.id);
@@ -128,15 +122,7 @@ export default function KonfirmasiDonasiPage() {
 
   const handleReset = () => {
     setStep("form");
-    setForm({
-      nama: "",
-      kontak: "",
-      tanggal: "",
-      jumlah: "",
-      rekening: "",
-      program_id: "",
-      catatan: "",
-    });
+    setForm(EMPTY_FORM);
     setFile(null);
   };
 
@@ -147,11 +133,11 @@ export default function KonfirmasiDonasiPage() {
           <CheckCircle2 size={32} className="text-[#0F4C3A]" />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">
-          Konfirmasi Diterima!
+          Konfirmasi Diterima
         </h2>
         <p className="text-slate-500">
           Jazakallahu khairan. Donasi Anda sudah kami terima dan sedang menunggu
-          verifikasi admin. Setelah diverifikasi (maks. 1×24 jam), donasi akan
+          verifikasi admin. Setelah diverifikasi (maks. 1x24 jam), donasi akan
           tercatat dalam laporan keuangan masjid.
         </p>
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
@@ -184,12 +170,13 @@ export default function KonfirmasiDonasiPage() {
         <span className="text-slate-800 font-medium">Konfirmasi Donasi</span>
       </nav>
 
-      {/* Banner info flow */}
+      {/* Info banner */}
       <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex gap-3">
         <HandHeart size={18} className="shrink-0 mt-0.5 text-blue-600" />
         <div>
-          <strong>Alur Donasi:</strong> Isi formulir → Admin verifikasi (1×24
-          jam kerja) → Donasi masuk ke laporan keuangan masjid yang transparan.
+          <strong>Alur Donasi:</strong> Isi formulir lalu admin verifikasi (1x24
+          jam kerja) kemudian donasi masuk ke laporan keuangan masjid yang
+          transparan.
         </div>
       </div>
 
@@ -199,7 +186,7 @@ export default function KonfirmasiDonasiPage() {
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="flex items-center space-x-4 px-8 py-6 border-b border-slate-100">
               <div className="w-10 h-10 bg-[#0F4C3A] rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg">🤲</span>
+                <HandHeart size={18} className="text-white" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-800">
@@ -211,7 +198,7 @@ export default function KonfirmasiDonasiPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <div className="p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Nama */}
                 <div className="space-y-1.5">
@@ -227,7 +214,7 @@ export default function KonfirmasiDonasiPage() {
                       name="nama"
                       value={form.nama}
                       onChange={handleChange}
-                      placeholder="Nama Anda (Boleh Hamba Allah)"
+                      placeholder="Nama Anda (boleh Hamba Allah)"
                       className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#0F4C3A]/30 focus:border-[#0F4C3A]"
                     />
                   </div>
@@ -276,7 +263,7 @@ export default function KonfirmasiDonasiPage() {
                 {/* Jumlah */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700">
-                    Jumlah Donasi *
+                    Jumlah Donasi <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-slate-500 text-sm font-medium">
@@ -288,7 +275,7 @@ export default function KonfirmasiDonasiPage() {
                       value={form.jumlah}
                       onChange={handleChange}
                       placeholder="0"
-                      required
+                      min="0"
                       className="w-full border border-slate-200 rounded-lg pl-10 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#0F4C3A]/30 focus:border-[#0F4C3A]"
                     />
                   </div>
@@ -320,7 +307,7 @@ export default function KonfirmasiDonasiPage() {
                   </div>
                 </div>
 
-                {/* Program Donasi — dari DB */}
+                {/* Program Donasi */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700">
                     Program Donasi
@@ -362,10 +349,10 @@ export default function KonfirmasiDonasiPage() {
                   <label className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#0F4C3A]/40 hover:bg-slate-50 transition-colors">
                     <Upload size={24} className="text-slate-400 mb-2" />
                     <p className="text-sm font-medium text-slate-600">
-                      Upload foto/screenshot bukti transfer
+                      Upload foto atau screenshot bukti transfer
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
-                      PNG, JPG, PDF — maks. 5MB
+                      PNG, JPG, PDF - maks. 5MB
                     </p>
                     <input
                       type="file"
@@ -390,9 +377,9 @@ export default function KonfirmasiDonasiPage() {
                     <button
                       type="button"
                       onClick={() => setFile(null)}
-                      className="text-xs text-slate-400 hover:text-rose-500"
+                      className="p-1 text-slate-400 hover:text-rose-500 rounded"
                     >
-                      Hapus
+                      <X size={16} />
                     </button>
                   </div>
                 )}
@@ -401,7 +388,7 @@ export default function KonfirmasiDonasiPage() {
               {/* Catatan */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-700">
-                  Catatan / Doa (Opsional)
+                  Catatan (Opsional)
                 </label>
                 <textarea
                   name="catatan"
@@ -416,7 +403,8 @@ export default function KonfirmasiDonasiPage() {
               {/* Submit */}
               <div className="flex justify-end">
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit}
                   disabled={loading || uploading}
                   className="flex items-center space-x-2 bg-[#0F4C3A] hover:bg-[#0A3629] text-white px-6 py-3 rounded-lg font-semibold text-sm transition-colors disabled:opacity-70"
                 >
@@ -438,7 +426,7 @@ export default function KonfirmasiDonasiPage() {
                   )}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
 
@@ -446,7 +434,7 @@ export default function KonfirmasiDonasiPage() {
         <div className="space-y-4">
           <div className="bg-white border border-slate-200 rounded-xl p-6">
             <h3 className="font-bold text-slate-800 mb-5">
-              ⓘ Langkah Konfirmasi
+              Langkah Konfirmasi
             </h3>
             <div className="space-y-4">
               {[
@@ -464,7 +452,7 @@ export default function KonfirmasiDonasiPage() {
                 {
                   step: 3,
                   title: "Verifikasi Admin",
-                  desc: "Admin cek bukti dan verifikasi (maks. 1×24 jam kerja).",
+                  desc: "Admin cek bukti dan verifikasi (maks. 1x24 jam kerja).",
                 },
                 {
                   step: 4,
@@ -474,7 +462,11 @@ export default function KonfirmasiDonasiPage() {
               ].map(({ step, title, desc, active }) => (
                 <div key={step} className="flex items-start space-x-3">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${active ? "bg-[#0F4C3A] text-white" : "bg-slate-100 text-slate-500"}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                      active
+                        ? "bg-[#0F4C3A] text-white"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
                   >
                     {step}
                   </div>
@@ -500,7 +492,7 @@ export default function KonfirmasiDonasiPage() {
               Hubungi admin keuangan jika ada kendala saat konfirmasi.
             </p>
             <button className="text-sm text-amber-700 font-semibold hover:underline flex items-center space-x-1">
-              <MessageCircle size={16} className="text-[#0F4C3A]" />
+              <MessageCircle size={14} className="text-[#0F4C3A]" />
               <span>Chat WhatsApp</span>
             </button>
           </div>

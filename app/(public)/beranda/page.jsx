@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -8,19 +8,85 @@ import {
   Wallet,
   Clock,
   HandHeart,
+  AlertCircle,
 } from "lucide-react";
 import { getRingkasanPublik } from "@/lib/publik";
 
-const PRAYER_TIMES = {
-  Subuh: "04:21",
-  Dzuhur: "11:45",
-  Ashar: "14:58",
-  Maghrib: "17:51",
-  Isya: "19:02",
-};
+// Koordinat default Jakarta Pusat
+const DEFAULT_COORD = { lat: -6.2088, lng: 106.8456, nama: "Jakarta Pusat" };
+const METODE_ID = 20; // Kemenag RI
+
+const WAKTU_TAMPIL = [
+  { key: "Fajr", label: "Subuh" },
+  { key: "Sunrise", label: "Terbit" },
+  { key: "Dhuhr", label: "Dzuhur" },
+  { key: "Asr", label: "Ashar" },
+  { key: "Maghrib", label: "Maghrib" },
+  { key: "Isha", label: "Isya" },
+];
+
+const SHOLAT_KEYS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
+
+function parseTime(raw) {
+  if (!raw) return null;
+  return raw
+    .replace(/\s*\(.*\)/, "")
+    .trim()
+    .slice(0, 5);
+}
+
+function getWaktuAktif(timings) {
+  if (!timings) return "Fajr";
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let aktif = "Fajr";
+  for (const key of SHOLAT_KEYS) {
+    const t = parseTime(timings[key]);
+    if (!t) continue;
+    const [h, m] = t.split(":").map(Number);
+    if (nowMin >= h * 60 + m) aktif = key;
+  }
+  return aktif;
+}
 
 function PrayerTimesBar() {
-  const current = "Ashar"; // nanti dynamic
+  const [timings, setTimings] = useState(null);
+  const [waktuAktif, setWaktuAktif] = useState("Fajr");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchTimings = async () => {
+      try {
+        const today = new Date();
+        const d = today.getDate();
+        const mo = today.getMonth() + 1;
+        const y = today.getFullYear();
+        const url = `https://api.aladhan.com/v1/timings/${d}-${mo}-${y}?latitude=${DEFAULT_COORD.lat}&longitude=${DEFAULT_COORD.lng}&method=${METODE_ID}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Gagal fetch jadwal");
+        const json = await res.json();
+        if (json.code !== 200) throw new Error(json.status);
+        setTimings(json.data.timings);
+        setWaktuAktif(getWaktuAktif(json.data.timings));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTimings();
+  }, []);
+
+  // Update waktu aktif setiap menit
+  useEffect(() => {
+    if (!timings) return;
+    const interval = setInterval(() => {
+      setWaktuAktif(getWaktuAktif(timings));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [timings]);
+
   return (
     <section className="max-w-6xl mx-auto px-4 sm:px-6 -mt-10 sm:-mt-14 relative z-10">
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-lg shadow-[#0F4C3A]/5">
@@ -30,38 +96,67 @@ function PrayerTimesBar() {
             <span className="font-semibold">Jadwal Sholat Hari Ini</span>
           </div>
           <span className="text-xs text-slate-400 hidden sm:inline">
-            Jakarta Pusat, 24 Okt
+            {DEFAULT_COORD.nama},{" "}
+            {new Date().toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+            })}
           </span>
         </div>
-        <div className="grid grid-cols-5 divide-x divide-slate-100">
-          {Object.entries(PRAYER_TIMES).map(([name, time]) => {
-            const isActive = name === current;
-            return (
+
+        {error ? (
+          <div className="flex items-center gap-2 px-5 py-4 text-xs text-slate-500">
+            <AlertCircle size={14} className="text-rose-400" />
+            <span>Jadwal sholat tidak tersedia saat ini.</span>
+          </div>
+        ) : loading ? (
+          <div className="grid grid-cols-6 divide-x divide-slate-100">
+            {WAKTU_TAMPIL.map((w) => (
               <div
-                key={name}
-                className={`flex flex-col items-center py-3 sm:py-4 ${
-                  isActive ? "bg-[#0F4C3A] text-white" : ""
-                }`}
+                key={w.key}
+                className="flex flex-col items-center py-3 sm:py-4 gap-2"
               >
-                {isActive && (
-                  <span className="text-[9px] sm:text-[10px] font-bold text-emerald-200 mb-1 tracking-wide">
-                    SEKARANG
-                  </span>
-                )}
-                <span
-                  className={`text-[11px] sm:text-xs mb-1 ${isActive ? "text-emerald-200" : "text-slate-500"}`}
-                >
-                  {name}
-                </span>
-                <span
-                  className={`text-sm sm:text-lg font-bold tabular-nums ${isActive ? "text-white" : "text-slate-800"}`}
-                >
-                  {time}
-                </span>
+                <div className="h-3 w-10 bg-slate-100 rounded animate-pulse" />
+                <div className="h-5 w-12 bg-slate-100 rounded animate-pulse" />
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-6 divide-x divide-slate-100">
+            {WAKTU_TAMPIL.map(({ key, label }) => {
+              const isActive = key === waktuAktif;
+              const time = parseTime(timings?.[key]);
+              return (
+                <div
+                  key={key}
+                  className={`flex flex-col items-center py-3 sm:py-4 ${
+                    isActive ? "bg-[#0F4C3A] text-white" : ""
+                  }`}
+                >
+                  {isActive && (
+                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-200 mb-1 tracking-wide">
+                      SEKARANG
+                    </span>
+                  )}
+                  <span
+                    className={`text-[11px] sm:text-xs mb-1 ${
+                      isActive ? "text-emerald-200" : "text-slate-500"
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  <span
+                    className={`text-sm sm:text-lg font-bold tabular-nums ${
+                      isActive ? "text-white" : "text-slate-800"
+                    }`}
+                  >
+                    {time ?? "--:--"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -121,7 +216,7 @@ export default function BerandaPage() {
         </div>
       </section>
 
-      {/* Jadwal Sholat */}
+      {/* Jadwal Sholat dari API */}
       <PrayerTimesBar />
 
       {/* Transparansi Keuangan */}
@@ -159,16 +254,11 @@ export default function BerandaPage() {
                 formatRp(data?.saldo)
               )}
             </div>
-            <p className="text-xs text-emerald-600 mt-1">
-              +5.2% dari bulan lalu
-            </p>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-500">
-                Pemasukan Bulan Ini
-              </span>
+              <span className="text-xs text-slate-500">Total Pemasukan</span>
               <div className="p-1.5 bg-emerald-50 rounded-lg">
                 <ArrowDownRight size={14} className="text-emerald-600" />
               </div>
@@ -185,9 +275,7 @@ export default function BerandaPage() {
 
           <div className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-500">
-                Pengeluaran Bulan Ini
-              </span>
+              <span className="text-xs text-slate-500">Total Pengeluaran</span>
               <div className="p-1.5 bg-rose-50 rounded-lg">
                 <ArrowUpRight size={14} className="text-rose-500" />
               </div>
@@ -211,7 +299,7 @@ export default function BerandaPage() {
         <div className="bg-[#0F4C3A] rounded-2xl px-6 sm:px-10 py-10 text-center sm:text-left sm:flex sm:items-center sm:justify-between gap-6">
           <div>
             <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">
-              Setiap Donasi Anda, Tercatat & Terlihat
+              Setiap Donasi Anda, Tercatat dan Terlihat
             </h3>
             <p className="text-emerald-100/80 text-sm max-w-md">
               Salurkan infaq, zakat, atau sedekah Anda. Seluruh dana akan
