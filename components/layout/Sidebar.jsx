@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   X,
   CalendarDays,
-  Moon
+  Moon,
+  User,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -24,7 +25,7 @@ const menuItems = [
   { name: "Donasi Masuk", icon: WalletCards, href: "/donasi" },
   { name: "Verifikasi Donasi", icon: ShieldCheck, href: "/verifikasi" },
   { name: "Pengeluaran Kas", icon: CreditCard, href: "/pengeluaran" },
-  { name: "Manajemen Kegiatan", icon: CalendarDays , href: "/admin_kegiatan" },
+  { name: "Manajemen Kegiatan", icon: CalendarDays, href: "/admin_kegiatan" },
   { name: "Laporan Keuangan", icon: FileBox, href: "/laporan" },
   { name: "Pengaturan", icon: Settings, href: "/pengaturan" },
 ];
@@ -32,6 +33,31 @@ const menuItems = [
 export default function Sidebar({ open = false, onClose = () => {} }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const [namaMasjid, setNamaMasjid] = useState("Sistem Keuangan");
+  const [namaBendahara, setNamaBendahara] = useState("Bendahara Masjid");
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("nama_bendahara, nama_masjid")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        if (profile.nama_masjid) setNamaMasjid(profile.nama_masjid);
+        if (profile.nama_bendahara) setNamaBendahara(profile.nama_bendahara);
+      }
+    };
+    load();
+  }, []);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -54,17 +80,18 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
       >
         <div>
+          {/* Logo & nama masjid */}
           <div className="p-6 flex items-center justify-between">
             <div className="flex items-center space-x-3 min-w-0">
               <div className="w-10 h-10 bg-[#0F4C3A] rounded-lg flex items-center justify-center text-white font-bold text-lg shrink-0">
-                <Moon size={20}/>
+                <Moon size={20} />
               </div>
               <div className="min-w-0">
                 <h1 className="font-bold text-slate-800 text-[15px] leading-tight truncate">
-                  Sistem Keuangan
+                  {namaMasjid}
                 </h1>
                 <p className="text-[13px] text-slate-500 truncate">
-                  Bendahara Masjid
+                  {namaBendahara}
                 </p>
               </div>
             </div>
@@ -91,7 +118,6 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
             {menuItems.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(`${item.href}/`);
-
               return (
                 <Link
                   key={item.name}
@@ -115,6 +141,19 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         </div>
 
         <div className="p-4 border-t border-slate-100 space-y-1">
+          {/* Link profil */}
+          <Link
+            href="/profil"
+            onClick={onClose}
+            className={`flex items-center space-x-3 px-3 py-2.5 rounded-md font-medium text-sm transition-colors ${
+              pathname === "/profil"
+                ? "bg-[#E2E8F0] text-slate-900"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <User size={18} className="text-slate-500" />
+            <span>Profil Saya</span>
+          </Link>
           <Link
             href="/bantuan"
             onClick={onClose}

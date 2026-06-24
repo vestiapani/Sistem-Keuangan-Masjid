@@ -12,6 +12,40 @@ export default function Navbar({ onMenuClick = () => {} }) {
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Profil user
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [namaBendahara, setNamaBendahara] = useState("");
+  const [namaMasjid, setNamaMasjid] = useState("Masjid At-Taqwa");
+
+  // Ambil profil sekali saat mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("nama_bendahara, nama_masjid, avatar_url")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        setNamaBendahara(profile.nama_bendahara ?? "");
+        if (profile.nama_masjid) setNamaMasjid(profile.nama_masjid);
+        if (profile.avatar_url) {
+          const { data: urlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(profile.avatar_url);
+          setAvatarUrl(urlData?.publicUrl ?? "");
+        }
+      }
+    };
+    loadProfile();
+  }, []);
+
   const loadNotifs = useCallback(async () => {
     setLoading(true);
     try {
@@ -50,15 +84,19 @@ export default function Navbar({ onMenuClick = () => {} }) {
     }
   };
 
-  const tipeIcon = (tipe) => {
-    if (tipe === "pengeluaran_baru") return "↑";
-    return "↓";
-  };
+  const tipeIcon = (tipe) => (tipe === "pengeluaran_baru" ? "↑" : "↓");
+  const tipeColor = (tipe) =>
+    tipe === "pengeluaran_baru" ? "text-rose-500" : "text-[#0F4C3A]";
 
-  const tipeColor = (tipe) => {
-    if (tipe === "pengeluaran_baru") return "text-rose-500";
-    return "text-[#0F4C3A]";
-  };
+  // Inisial untuk fallback avatar
+  const initials = namaBendahara
+    ? namaBendahara
+        .split(" ")
+        .map((w) => w[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "AD";
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 z-10 shrink-0">
@@ -70,11 +108,12 @@ export default function Navbar({ onMenuClick = () => {} }) {
           <Moon size={20} />
         </button>
         <h2 className="text-base sm:text-lg font-bold text-[#0F4C3A] truncate">
-          Masjid At-Taqwa
+          {namaMasjid}
         </h2>
       </div>
 
       <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
+        {/* Notifikasi */}
         <div className="relative">
           <button
             onClick={handleOpenNotif}
@@ -163,15 +202,21 @@ export default function Navbar({ onMenuClick = () => {} }) {
           <HelpCircle size={20} />
         </Link>
 
+        {/* Avatar — link ke /profil */}
         <Link
-          href="/pengaturan"
-          className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border border-slate-300 shrink-0"
+          href="/profil"
+          className="w-8 h-8 rounded-full overflow-hidden border border-slate-300 shrink-0 bg-[#0F4C3A] flex items-center justify-center"
+          title={namaBendahara || "Profil Saya"}
         >
-          <img
-            src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
-            alt="Profile"
-            className="w-full h-full object-cover"
-          />
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="Foto profil"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-white text-xs font-bold">{initials}</span>
+          )}
         </Link>
       </div>
     </header>
