@@ -12,14 +12,6 @@ import {
 } from "lucide-react";
 import { getInfoMasjid } from "@/lib/publik";
 
-/**
- * InfoMasjidPublik — tampilkan data info masjid dari DB di halaman publik.
- * Bisa dipakai di beranda, laporan keuangan, atau halaman about.
- *
- * Usage:
- *   import InfoMasjidPublik from "@/components/publik/InfoMasjidPublik";
- *   <InfoMasjidPublik />
- */
 export default function InfoMasjidPublik() {
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -31,54 +23,51 @@ export default function InfoMasjidPublik() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Jika tidak ada data sama sekali, jangan render section
-  if (!loading && !info) return null;
+  const items =
+    !loading && info
+      ? [
+          info.alamat && {
+            icon: MapPin,
+            label: "Alamat",
+            value: info.alamat,
+            href: `https://maps.google.com/?q=${encodeURIComponent(info.alamat)}`,
+          },
+          info.telepon && {
+            icon: Phone,
+            label: "Telepon",
+            value: info.telepon,
+            href: `tel:${info.telepon}`,
+          },
+          info.email_masjid && {
+            icon: Mail,
+            label: "Email",
+            value: info.email_masjid,
+            href: `mailto:${info.email_masjid}`,
+          },
+          info.website && {
+            icon: Globe,
+            label: "Website",
+            value: info.website.replace(/^https?:\/\//, ""),
+            href: info.website,
+          },
+          info.kapasitas && {
+            icon: Users,
+            label: "Kapasitas",
+            value: `${Number(info.kapasitas).toLocaleString("id-ID")} jamaah`,
+            href: null,
+          },
+          info.tahun_berdiri && {
+            icon: Calendar,
+            label: "Berdiri",
+            value: `Tahun ${info.tahun_berdiri}`,
+            href: null,
+          },
+        ].filter(Boolean)
+      : [];
 
-  const items = loading
-    ? []
-    : [
-        info.alamat && {
-          icon: MapPin,
-          label: "Alamat",
-          value: info.alamat,
-          href: info.alamat
-            ? `https://maps.google.com/?q=${encodeURIComponent(info.alamat)}`
-            : null,
-        },
-        info.telepon && {
-          icon: Phone,
-          label: "Telepon",
-          value: info.telepon,
-          href: `tel:${info.telepon}`,
-        },
-        info.email_masjid && {
-          icon: Mail,
-          label: "Email",
-          value: info.email_masjid,
-          href: `mailto:${info.email_masjid}`,
-        },
-        info.website && {
-          icon: Globe,
-          label: "Website",
-          value: info.website.replace(/^https?:\/\//, ""),
-          href: info.website,
-        },
-        info.kapasitas && {
-          icon: Users,
-          label: "Kapasitas",
-          value: `${Number(info.kapasitas).toLocaleString("id-ID")} jamaah`,
-          href: null,
-        },
-        info.tahun_berdiri && {
-          icon: Calendar,
-          label: "Berdiri",
-          value: `Tahun ${info.tahun_berdiri}`,
-          href: null,
-        },
-      ].filter(Boolean);
-
-  // Tidak ada field yang diisi → sembunyikan
-  if (!loading && items.length === 0) return null;
+  // Jika loading selesai dan tidak ada item, tampilkan placeholder
+  // supaya section tetap ada di beranda tapi dengan pesan kosong
+  const showPlaceholder = !loading && items.length === 0;
 
   return (
     <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
@@ -104,6 +93,11 @@ export default function InfoMasjidPublik() {
               className="h-20 bg-slate-100 rounded-xl animate-pulse"
             />
           ))}
+        </div>
+      ) : showPlaceholder ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center text-slate-400 text-sm">
+          Informasi masjid belum diisi. Admin dapat melengkapinya di menu{" "}
+          <strong>Pengaturan → Informasi Masjid</strong>.
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

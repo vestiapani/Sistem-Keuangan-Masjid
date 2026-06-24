@@ -38,19 +38,23 @@ const EMPTY_FORM = {
   catatan: "",
 };
 
-// Komponen untuk copy nomor rekening
+// Komponen untuk copy nomor rekening — standalone, bukan nested di button
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
+  const handleCopy = (e) => {
+    e.stopPropagation();
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
   return (
-    <button
+    <span
+      role="button"
+      tabIndex={0}
       onClick={handleCopy}
-      className="p-1 text-slate-400 hover:text-[#0F4C3A] rounded transition-colors"
+      onKeyDown={(e) => e.key === "Enter" && handleCopy(e)}
+      className="p-1 text-slate-400 hover:text-[#0F4C3A] rounded transition-colors cursor-pointer inline-flex items-center"
       title="Salin nomor rekening"
     >
       {copied ? (
@@ -58,7 +62,7 @@ function CopyButton({ text }) {
       ) : (
         <Copy size={14} />
       )}
-    </button>
+    </span>
   );
 }
 
@@ -72,9 +76,8 @@ export default function KonfirmasiDonasiPage() {
   const [loadingPrograms, setLoadingPrograms] = useState(true);
   const [loadingRekenings, setLoadingRekenings] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
-  const [qrisZoom, setQrisZoom] = useState(null); // untuk zoom QRIS
+  const [qrisZoom, setQrisZoom] = useState(null);
 
-  // Rekening yang dipilih saat ini
   const selectedRekening = rekenings.find(
     (r) => String(r.id) === String(form.rekening_id),
   );
@@ -109,6 +112,10 @@ export default function KonfirmasiDonasiPage() {
     setFile(selected);
   };
 
+  const handleSelectRekening = (id) => {
+    setForm((prev) => ({ ...prev, rekening_id: String(id) }));
+  };
+
   const handleSubmit = async () => {
     if (!form.jumlah || parseInt(form.jumlah) <= 0) {
       toast.error("Harap isi nominal donasi dengan benar.");
@@ -125,7 +132,6 @@ export default function KonfirmasiDonasiPage() {
         (p) => String(p.id) === String(form.program_id),
       );
 
-      // Susun keterangan
       const keteranganParts = [
         selectedRekening
           ? selectedRekening.tipe === "bank"
@@ -149,7 +155,6 @@ export default function KonfirmasiDonasiPage() {
 
       const donasi = await submitDonasiPublik(payload);
 
-      // Upload bukti transfer
       setUploading(true);
       const path = await uploadBuktiTransfer(file, donasi.id);
       const supabase = createClient();
@@ -425,13 +430,16 @@ export default function KonfirmasiDonasiPage() {
                         const isSelected =
                           String(form.rekening_id) === String(r.id);
                         return (
-                          <button
+                          // Ganti <button> jadi <div> agar tidak ada nested button
+                          <div
                             key={r.id}
-                            type="button"
-                            onClick={() =>
-                              setForm({ ...form, rekening_id: String(r.id) })
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleSelectRekening(r.id)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && handleSelectRekening(r.id)
                             }
-                            className={`w-full text-left border rounded-xl p-4 transition-all ${
+                            className={`w-full text-left border rounded-xl p-4 transition-all cursor-pointer ${
                               isSelected
                                 ? "border-[#0F4C3A] bg-[#0F4C3A]/5 ring-2 ring-[#0F4C3A]/20"
                                 : "border-slate-200 hover:border-slate-300 bg-white"
@@ -440,7 +448,7 @@ export default function KonfirmasiDonasiPage() {
                             {r.tipe === "bank" ? (
                               <div className="flex items-center gap-3">
                                 <div
-                                  className={`p-2 rounded-lg ${isSelected ? "bg-[#0F4C3A]" : "bg-slate-100"}`}
+                                  className={`p-2 rounded-lg shrink-0 ${isSelected ? "bg-[#0F4C3A]" : "bg-slate-100"}`}
                                 >
                                   <Landmark
                                     size={16}
@@ -452,7 +460,7 @@ export default function KonfirmasiDonasiPage() {
                                   />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-semibold text-slate-800">
                                       {r.bank}
                                     </p>
@@ -464,6 +472,7 @@ export default function KonfirmasiDonasiPage() {
                                     <p className="text-sm text-slate-600 font-mono">
                                       {r.nomor}
                                     </p>
+                                    {/* CopyButton sebagai span, bukan button — aman di dalam div */}
                                     <CopyButton text={r.nomor} />
                                   </div>
                                   <p className="text-xs text-slate-400">
@@ -480,7 +489,7 @@ export default function KonfirmasiDonasiPage() {
                             ) : (
                               <div className="flex items-center gap-3">
                                 <div
-                                  className={`p-2 rounded-lg ${isSelected ? "bg-[#0F4C3A]" : "bg-slate-100"}`}
+                                  className={`p-2 rounded-lg shrink-0 ${isSelected ? "bg-[#0F4C3A]" : "bg-slate-100"}`}
                                 >
                                   <QrCode
                                     size={16}
@@ -492,7 +501,7 @@ export default function KonfirmasiDonasiPage() {
                                   />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-semibold text-slate-800">
                                       {r.label}
                                     </p>
@@ -505,8 +514,9 @@ export default function KonfirmasiDonasiPage() {
                                   </p>
                                 </div>
                                 {r.qris_image_url && (
-                                  <button
-                                    type="button"
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setQrisZoom({
@@ -514,10 +524,19 @@ export default function KonfirmasiDonasiPage() {
                                         label: r.label,
                                       });
                                     }}
-                                    className="text-xs text-[#0F4C3A] hover:underline shrink-0"
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.stopPropagation();
+                                        setQrisZoom({
+                                          url: r.qris_image_url,
+                                          label: r.label,
+                                        });
+                                      }
+                                    }}
+                                    className="text-xs text-[#0F4C3A] hover:underline shrink-0 cursor-pointer"
                                   >
                                     Lihat QR
-                                  </button>
+                                  </span>
                                 )}
                                 {isSelected && (
                                   <CheckCircle2
@@ -527,7 +546,7 @@ export default function KonfirmasiDonasiPage() {
                                 )}
                               </div>
                             )}
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -681,7 +700,11 @@ export default function KonfirmasiDonasiPage() {
                 ].map(({ step, title, desc, active }) => (
                   <div key={step} className="flex items-start space-x-3">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${active ? "bg-[#0F4C3A] text-white" : "bg-slate-100 text-slate-500"}`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                        active
+                          ? "bg-[#0F4C3A] text-white"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
                     >
                       {step}
                     </div>
