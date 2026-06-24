@@ -11,6 +11,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getDonasis, deleteDonasi, updateDonasi } from "@/lib/donasi";
 import {
@@ -18,9 +27,12 @@ import {
   deletePengeluaran,
   updatePengeluaran,
 } from "@/lib/pengeluaran";
-import { periodeToDateRange, generatePeriodeOptions,simpanLaporan } from "@/lib/dashboard";
+import {
+  periodeToDateRange,
+  generatePeriodeOptions,
+  simpanLaporan,
+} from "@/lib/dashboard";
 import ExportPdfButton from "@/components/laporan/ExportPdfButton";
-import { Button } from "@/components/ui/button";
 
 export default function LaporanPage() {
   const periodeOptions = generatePeriodeOptions(24);
@@ -30,16 +42,20 @@ export default function LaporanPage() {
   const [pengeluarans, setPengeluarans] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // State untuk modal edit
+  const [editOpen, setEditOpen] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [editNominal, setEditNominal] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
   const formatRp = (angka) => new Intl.NumberFormat("id-ID").format(angka);
 
-  // Load data dari Supabase
   const loadData = async () => {
     setLoading(true);
     try {
       const [d, p] = await Promise.all([getDonasis(), getPengeluarans()]);
       setDonasis(d);
       setPengeluarans(p);
-      console.log(pengeluarans);
     } catch (err) {
       toast.error("Gagal memuat data.");
     } finally {
@@ -51,10 +67,7 @@ export default function LaporanPage() {
     loadData();
   }, []);
 
-  // Filter berdasarkan periode
-  
   const { startDate, endDate } = periodeToDateRange(periode);
-  
 
   const donasisPeriode = donasis.filter(
     (d) => d.tanggal_donasi >= startDate && d.tanggal_donasi <= endDate,
@@ -64,7 +77,6 @@ export default function LaporanPage() {
       p.tanggal_pengeluaran >= startDate && p.tanggal_pengeluaran <= endDate,
   );
 
-  // Kalkulasi
   const totalMasuk = donasisPeriode.reduce((a, b) => a + b.jumlah_dana, 0);
   const totalKeluar = pengeluaransPeriode.reduce(
     (a, b) => a + b.jumlah_pengeluaran,
@@ -72,7 +84,6 @@ export default function LaporanPage() {
   );
   const surplus = totalMasuk - totalKeluar;
 
-  // Gabungkan untuk tabel
   const allRows = useMemo(() => {
     const rows = [
       ...donasisPeriode.map((d) => ({
@@ -101,7 +112,7 @@ export default function LaporanPage() {
 
   // Hapus
   const handleHapus = async (row) => {
-    if (!confirm(`Yakin hapus transaksi ini?`)) return;
+    if (!confirm("Yakin hapus transaksi ini?")) return;
     try {
       if (row.tipe === "donasi") await deleteDonasi(row.id);
       else await deletePengeluaran(row.id);
@@ -112,22 +123,33 @@ export default function LaporanPage() {
     }
   };
 
-  // Edit
-  const handleEdit = async (row) => {
+  // Buka modal edit
+  const handleOpenEdit = (row) => {
+    setEditRow(row);
     const current = row.tipe === "donasi" ? row.pemasukan : row.pengeluaran;
-    const input = prompt(
-      `Edit nominal (saat ini: Rp ${formatRp(current)}):`,
-      current,
-    );
-    if (!input || isNaN(input)) return;
+    setEditNominal(String(current));
+    setEditOpen(true);
+  };
 
+  // Simpan edit
+  const handleSaveEdit = async () => {
+    const nilai = parseInt(editNominal);
+    if (!editNominal || isNaN(nilai) || nilai <= 0) {
+      toast.error("Masukkan nominal yang valid.");
+      return;
+    }
+    setEditSaving(true);
     try {
-      if (row.tipe === "donasi") await updateDonasi(row.id, parseInt(input));
-      else await updatePengeluaran(row.id, parseInt(input));
+      if (editRow.tipe === "donasi") await updateDonasi(editRow.id, nilai);
+      else await updatePengeluaran(editRow.id, nilai);
       toast.success("Data berhasil diperbarui.");
+      setEditOpen(false);
+      setEditRow(null);
       loadData();
     } catch {
       toast.error("Gagal memperbarui.");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -137,13 +159,9 @@ export default function LaporanPage() {
       toast.success("Laporan berhasil disimpan.");
     } catch (err) {
       console.error("Simpan laporan error:", err);
-      toast.error(
-        "Gagal menyimpan laporan: ",
-      );
+      toast.error("Gagal menyimpan laporan.");
     }
   };
-
-  
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -153,7 +171,7 @@ export default function LaporanPage() {
           Laporan & Transparansi
         </h3>
 
-        <div className="flex gap-3 ">
+        <div className="flex gap-3">
           <Button onClick={handleSimpanLaporan} variant="outline">
             Simpan Laporan
           </Button>
@@ -166,7 +184,11 @@ export default function LaporanPage() {
             rows={allRows}
           />
 
-          <select value={periode} onChange={(e) => setPeriode(e.target.value)}>
+          <select
+            value={periode}
+            onChange={(e) => setPeriode(e.target.value)}
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#0F4C3A]/20"
+          >
             {periodeOptions.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -263,7 +285,7 @@ export default function LaporanPage() {
                     </TableCell>
                     <TableCell className="text-center space-x-2">
                       <button
-                        onClick={() => handleEdit(row)}
+                        onClick={() => handleOpenEdit(row)}
                         className="p-1.5 text-blue-500 hover:bg-blue-50 rounded"
                       >
                         <Edit size={14} />
@@ -282,6 +304,74 @@ export default function LaporanPage() {
           </Table>
         )}
       </Card>
+
+      {/* Modal Edit Nominal */}
+      <Dialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditOpen(false);
+            setEditRow(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Edit Nominal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {editRow && (
+              <div className="bg-slate-50 rounded-lg px-4 py-3">
+                <p className="text-xs text-slate-500 mb-0.5">Transaksi</p>
+                <p className="text-sm font-semibold text-slate-800 truncate">
+                  {editRow.deskripsi}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {editRow.tanggal} ·{" "}
+                  {editRow.tipe === "donasi" ? "Pemasukan" : "Pengeluaran"}
+                </p>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-slate-700">
+                Nominal Baru (Rp)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-slate-500 text-sm font-medium">
+                  Rp
+                </span>
+                <Input
+                  type="number"
+                  value={editNominal}
+                  onChange={(e) => setEditNominal(e.target.value)}
+                  placeholder="0"
+                  className="pl-10"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveEdit();
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditOpen(false)}
+              disabled={editSaving}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={editSaving}
+              className="bg-[#0F4C3A] text-white"
+            >
+              {editSaving ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -16,19 +16,355 @@ import {
   Upload,
   X,
   Landmark,
+  Target,
+  Edit2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+
+// ─── Program Donasi ───────────────────────────────────────────────
+function ProgramDonasiSection({ userId }) {
+  const [programs, setPrograms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [editData, setEditData] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    nama: "",
+    deskripsi: "",
+    target: "",
+    terkumpul: "",
+    aktif: true,
+  });
+
+  const loadPrograms = async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("program_donasis")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (!error) setPrograms(data ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadPrograms();
+  }, []);
+
+  const handleOpenAdd = () => {
+    setEditData(null);
+    setForm({
+      nama: "",
+      deskripsi: "",
+      target: "",
+      terkumpul: "",
+      aktif: true,
+    });
+    setOpenDialog(true);
+  };
+
+  const handleOpenEdit = (prog) => {
+    setEditData(prog);
+    setForm({
+      nama: prog.nama ?? "",
+      deskripsi: prog.deskripsi ?? "",
+      target: prog.target ?? "",
+      terkumpul: prog.terkumpul ?? "",
+      aktif: prog.aktif ?? true,
+    });
+    setOpenDialog(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.nama || !form.target) {
+      toast.error("Nama dan target wajib diisi.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const payload = {
+        nama: form.nama,
+        deskripsi: form.deskripsi || null,
+        target: parseInt(form.target) || 0,
+        terkumpul: parseInt(form.terkumpul) || 0,
+        aktif: form.aktif,
+      };
+
+      if (editData) {
+        const { error } = await supabase
+          .from("program_donasis")
+          .update({ ...payload, updated_at: new Date().toISOString() })
+          .eq("id", editData.id);
+        if (error) throw error;
+        toast.success("Program berhasil diperbarui.");
+      } else {
+        const { error } = await supabase
+          .from("program_donasis")
+          .insert([{ ...payload, created_by: userId }]);
+        if (error) throw error;
+        toast.success("Program berhasil ditambahkan.");
+      }
+
+      setOpenDialog(false);
+      loadPrograms();
+    } catch (err) {
+      toast.error(err?.message ?? "Gagal menyimpan program.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleHapus = async (id) => {
+    if (!confirm("Yakin hapus program ini?")) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("program_donasis")
+      .delete()
+      .eq("id", id);
+    if (error) toast.error("Gagal menghapus.");
+    else {
+      toast.success("Program dihapus.");
+      loadPrograms();
+    }
+  };
+
+  const handleToggleAktif = async (prog) => {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("program_donasis")
+      .update({ aktif: !prog.aktif, updated_at: new Date().toISOString() })
+      .eq("id", prog.id);
+    if (error) toast.error("Gagal mengubah status.");
+    else loadPrograms();
+  };
+
+  const formatRp = (n) => "Rp " + new Intl.NumberFormat("id-ID").format(n ?? 0);
+
+  return (
+    <>
+      <Card>
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <Target size={18} className="text-purple-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800">Program Donasi</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ditampilkan di halaman konfirmasi donasi publik.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleOpenAdd}
+            size="sm"
+            className="bg-[#0F4C3A] text-white"
+          >
+            <Plus size={14} className="mr-1.5" /> Tambah Program
+          </Button>
+        </div>
+
+        <CardContent className="p-6 space-y-3">
+          {loading ? (
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-16 bg-slate-100 rounded-lg animate-pulse"
+                />
+              ))}
+            </div>
+          ) : programs.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">
+              Belum ada program donasi. Tambahkan program pertama.
+            </p>
+          ) : (
+            programs.map((prog) => {
+              const persen =
+                prog.target > 0
+                  ? Math.min(
+                      100,
+                      Math.round((prog.terkumpul / prog.target) * 100),
+                    )
+                  : 0;
+              return (
+                <div
+                  key={prog.id}
+                  className={`border rounded-xl p-4 ${prog.aktif ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"}`}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-slate-800">
+                          {prog.nama}
+                        </p>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${prog.aktif ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}
+                        >
+                          {prog.aktif ? "Aktif" : "Nonaktif"}
+                        </span>
+                      </div>
+                      {prog.deskripsi && (
+                        <p className="text-xs text-slate-500 mt-0.5 truncate">
+                          {prog.deskripsi}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-400 mt-1">
+                        {formatRp(prog.terkumpul)} / {formatRp(prog.target)} (
+                        {persen}%)
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleToggleAktif(prog)}
+                        className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors"
+                        title={prog.aktif ? "Nonaktifkan" : "Aktifkan"}
+                      >
+                        {prog.aktif ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(prog)}
+                        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleHapus(prog.id)}
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-full">
+                    <div
+                      className="h-1.5 bg-[#0F4C3A] rounded-full transition-all"
+                      style={{ width: `${persen}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editData ? "Edit Program" : "Tambah Program Donasi"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">
+                Nama Program *
+              </label>
+              <Input
+                value={form.nama}
+                onChange={(e) => setForm({ ...form, nama: e.target.value })}
+                placeholder="Contoh: Pembangunan Menara"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">
+                Deskripsi
+              </label>
+              <textarea
+                value={form.deskripsi}
+                onChange={(e) =>
+                  setForm({ ...form, deskripsi: e.target.value })
+                }
+                rows={2}
+                className="flex w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0F4C3A] resize-none"
+                placeholder="Deskripsi singkat program..."
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Target (Rp) *
+                </label>
+                <Input
+                  type="number"
+                  value={form.target}
+                  onChange={(e) => setForm({ ...form, target: e.target.value })}
+                  placeholder="500000000"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Terkumpul (Rp)
+                </label>
+                <Input
+                  type="number"
+                  value={form.terkumpul}
+                  onChange={(e) =>
+                    setForm({ ...form, terkumpul: e.target.value })
+                  }
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, aktif: !form.aktif })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.aktif ? "bg-[#0F4C3A]" : "bg-slate-200"}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.aktif ? "translate-x-6" : "translate-x-1"}`}
+                />
+              </button>
+              <span className="text-sm text-slate-700">
+                Tampilkan di halaman publik
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setOpenDialog(false)}
+              disabled={saving}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-[#0F4C3A] text-white"
+            >
+              {saving
+                ? "Menyimpan..."
+                : editData
+                  ? "Simpan Perubahan"
+                  : "Tambah Program"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 // ─── Rekening Bank & QRIS ─────────────────────────────────────────
 function RekeningSection({ userId }) {
   const [rekenings, setRekenings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [tipe, setTipe] = useState("bank"); // "bank" | "qris"
+  const [tipe, setTipe] = useState("bank");
   const [qrisFile, setQrisFile] = useState(null);
   const [qrisPreview, setQrisPreview] = useState(null);
   const fileInputRef = useRef(null);
@@ -127,15 +463,12 @@ function RekeningSection({ userId }) {
     setSaving(true);
     try {
       const supabase = createClient();
-
-      // Upload foto QRIS ke bucket
       const ext = qrisFile.name.split(".").pop();
       const path = `qris-${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("qris-masjid")
         .upload(path, qrisFile, { upsert: false });
       if (uploadError) throw uploadError;
-
       const { data, error } = await supabase
         .from("rekening_masjid")
         .insert([
@@ -149,7 +482,6 @@ function RekeningSection({ userId }) {
         .select()
         .single();
       if (error) throw error;
-
       setRekenings((prev) => [...prev, data]);
       setFormQris({ label: "" });
       setQrisFile(null);
@@ -171,20 +503,16 @@ function RekeningSection({ userId }) {
       return;
     try {
       const supabase = createClient();
-
-      // Hapus file QRIS dari storage jika ada
       if (rekening.tipe === "qris" && rekening.qris_image_path) {
         await supabase.storage
           .from("qris-masjid")
           .remove([rekening.qris_image_path]);
       }
-
       const { error } = await supabase
         .from("rekening_masjid")
         .delete()
         .eq("id", rekening.id);
       if (error) throw error;
-
       setRekenings((prev) => prev.filter((r) => r.id !== rekening.id));
       toast.success("Berhasil dihapus.");
     } catch (err) {
@@ -212,9 +540,7 @@ function RekeningSection({ userId }) {
           </p>
         </div>
       </div>
-
       <CardContent className="p-6 space-y-5">
-        {/* Daftar rekening yang sudah ada */}
         {loading ? (
           <div className="space-y-2">
             {[1, 2].map((i) => (
@@ -282,35 +608,24 @@ function RekeningSection({ userId }) {
           </div>
         )}
 
-        {/* Form tambah — toggle bank / qris */}
         <div className="border border-dashed border-slate-300 rounded-lg p-5 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-slate-600">Tambah Baru</p>
-            {/* Toggle tipe */}
             <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold">
               <button
                 onClick={() => setTipe("bank")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
-                  tipe === "bank"
-                    ? "bg-[#0F4C3A] text-white"
-                    : "bg-white text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${tipe === "bank" ? "bg-[#0F4C3A] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
               >
                 <Landmark size={12} /> Bank
               </button>
               <button
                 onClick={() => setTipe("qris")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
-                  tipe === "qris"
-                    ? "bg-[#0F4C3A] text-white"
-                    : "bg-white text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${tipe === "qris" ? "bg-[#0F4C3A] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
               >
                 <QrCode size={12} /> QRIS
               </button>
             </div>
           </div>
-
           {tipe === "bank" ? (
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -360,8 +675,6 @@ function RekeningSection({ userId }) {
                 value={formQris.label}
                 onChange={(e) => setFormQris({ label: e.target.value })}
               />
-
-              {/* Upload foto QRIS */}
               {!qrisPreview ? (
                 <label className="border-2 border-dashed border-slate-200 rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#0F4C3A]/40 hover:bg-slate-50 transition-colors">
                   <Upload size={20} className="text-slate-400 mb-2" />
@@ -407,7 +720,6 @@ function RekeningSection({ userId }) {
                   </button>
                 </div>
               )}
-
               <Button
                 onClick={handleTambahQris}
                 disabled={saving}
@@ -448,8 +760,10 @@ function InfoMasjidSection({ userId }) {
           telepon: data.telepon ?? "",
           email_masjid: data.email_masjid ?? "",
           website: data.website ?? "",
-          kapasitas: data.kapasitas ?? "",
-          tahun_berdiri: data.tahun_berdiri ?? "",
+          // Pastikan tampil sebagai string untuk input, tapi simpan sebagai int/null
+          kapasitas: data.kapasitas != null ? String(data.kapasitas) : "",
+          tahun_berdiri:
+            data.tahun_berdiri != null ? String(data.tahun_berdiri) : "",
         });
       }
     };
@@ -460,11 +774,33 @@ function InfoMasjidSection({ userId }) {
     setSaving(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("info_masjid").upsert({
-        ...form,
+
+      // Convert ke integer atau null — ini fix bug "invalid input syntax for type integer"
+      const payload = {
+        alamat: form.alamat || null,
+        telepon: form.telepon || null,
+        email_masjid: form.email_masjid || null,
+        website: form.website || null,
+        kapasitas: form.kapasitas !== "" ? parseInt(form.kapasitas) : null,
+        tahun_berdiri:
+          form.tahun_berdiri !== "" ? parseInt(form.tahun_berdiri) : null,
         updated_by: userId,
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      // Validasi integer
+      if (form.kapasitas !== "" && isNaN(payload.kapasitas)) {
+        toast.error("Kapasitas harus berupa angka.");
+        setSaving(false);
+        return;
+      }
+      if (form.tahun_berdiri !== "" && isNaN(payload.tahun_berdiri)) {
+        toast.error("Tahun berdiri harus berupa angka.");
+        setSaving(false);
+        return;
+      }
+
+      const { error } = await supabase.from("info_masjid").upsert(payload);
       if (error) throw error;
       setSaved(true);
       toast.success("Info masjid berhasil disimpan.");
@@ -601,14 +937,13 @@ function NotifikasiSection({ userId }) {
         .select("*")
         .eq("user_id", userId)
         .single();
-      if (data) {
+      if (data)
         setPrefs({
           donasi_baru: data.donasi_baru ?? true,
           donasi_diverifikasi: data.donasi_diverifikasi ?? true,
           pengeluaran_baru: data.pengeluaran_baru ?? true,
           donasi_ditolak: data.donasi_ditolak ?? true,
         });
-      }
     };
     if (userId) load();
   }, [userId]);
@@ -617,11 +952,13 @@ function NotifikasiSection({ userId }) {
     setSaving(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("notif_preferences").upsert({
-        user_id: userId,
-        ...prefs,
-        updated_at: new Date().toISOString(),
-      });
+      const { error } = await supabase
+        .from("notif_preferences")
+        .upsert({
+          user_id: userId,
+          ...prefs,
+          updated_at: new Date().toISOString(),
+        });
       if (error) throw error;
       toast.success("Preferensi notifikasi disimpan.");
     } catch (err) {
@@ -682,14 +1019,10 @@ function NotifikasiSection({ userId }) {
                 onClick={() =>
                   setPrefs((prev) => ({ ...prev, [key]: !prev[key] }))
                 }
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ml-4 ${
-                  prefs[key] ? "bg-[#0F4C3A]" : "bg-slate-200"
-                }`}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ml-4 ${prefs[key] ? "bg-[#0F4C3A]" : "bg-slate-200"}`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                    prefs[key] ? "translate-x-6" : "translate-x-1"
-                  }`}
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${prefs[key] ? "translate-x-6" : "translate-x-1"}`}
                 />
               </button>
             </div>
@@ -732,7 +1065,6 @@ function KeamananSection() {
       const supabase = createClient();
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Sesi habis.");
-
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: userData.user.email,
         password: passwordLama,
@@ -741,12 +1073,10 @@ function KeamananSection() {
         toast.error("Password lama salah.");
         return;
       }
-
       const { error } = await supabase.auth.updateUser({
         password: passwordBaru,
       });
       if (error) throw error;
-
       setPasswordLama("");
       setPasswordBaru("");
       setPasswordKonfirmasi("");
@@ -907,11 +1237,13 @@ export default function PengaturanPage() {
       <div>
         <h3 className="text-2xl font-bold text-slate-900">Pengaturan Sistem</h3>
         <p className="text-sm text-slate-500 mt-1">
-          Kelola informasi masjid, rekening, notifikasi, dan keamanan akun.
+          Kelola informasi masjid, rekening, program donasi, notifikasi, dan
+          keamanan akun.
         </p>
       </div>
       <InfoMasjidSection userId={userId} />
       <RekeningSection userId={userId} />
+      <ProgramDonasiSection userId={userId} />
       <NotifikasiSection userId={userId} />
       <KeamananSection />
     </div>
