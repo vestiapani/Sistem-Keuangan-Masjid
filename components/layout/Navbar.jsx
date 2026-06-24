@@ -5,46 +5,14 @@ import Link from "next/link";
 import { Bell, HelpCircle, Moon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getNotifikasiTerbaru, markAllNotifAsRead } from "@/lib/dashboard";
+import { useProfile } from "@/context/ProfileContext";
 
 export default function Navbar({ onMenuClick = () => {} }) {
+  const { profile } = useProfile();
   const [showNotif, setShowNotif] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
-
-  // Profil user
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [namaBendahara, setNamaBendahara] = useState("");
-  const [namaMasjid, setNamaMasjid] = useState("Masjid At-Taqwa");
-
-  // Ambil profil sekali saat mount
-  useEffect(() => {
-    const loadProfile = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("nama_bendahara, nama_masjid, avatar_url")
-        .eq("id", user.id)
-        .single();
-
-      if (profile) {
-        setNamaBendahara(profile.nama_bendahara ?? "");
-        if (profile.nama_masjid) setNamaMasjid(profile.nama_masjid);
-        if (profile.avatar_url) {
-          const { data: urlData } = supabase.storage
-            .from("avatars")
-            .getPublicUrl(profile.avatar_url);
-          setAvatarUrl(urlData?.publicUrl ?? "");
-        }
-      }
-    };
-    loadProfile();
-  }, []);
 
   const loadNotifs = useCallback(async () => {
     setLoading(true);
@@ -88,16 +56,6 @@ export default function Navbar({ onMenuClick = () => {} }) {
   const tipeColor = (tipe) =>
     tipe === "pengeluaran_baru" ? "text-rose-500" : "text-[#0F4C3A]";
 
-  // Inisial untuk fallback avatar
-  const initials = namaBendahara
-    ? namaBendahara
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "AD";
-
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 z-10 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
@@ -108,7 +66,11 @@ export default function Navbar({ onMenuClick = () => {} }) {
           <Moon size={20} />
         </button>
         <h2 className="text-base sm:text-lg font-bold text-[#0F4C3A] truncate">
-          {namaMasjid}
+          {profile.loading ? (
+            <span className="inline-block h-5 w-36 bg-slate-100 rounded animate-pulse" />
+          ) : (
+            profile.namaMasjid
+          )}
         </h2>
       </div>
 
@@ -202,20 +164,24 @@ export default function Navbar({ onMenuClick = () => {} }) {
           <HelpCircle size={20} />
         </Link>
 
-        {/* Avatar — link ke /profil */}
+        {/* Avatar */}
         <Link
           href="/profil"
           className="w-8 h-8 rounded-full overflow-hidden border border-slate-300 shrink-0 bg-[#0F4C3A] flex items-center justify-center"
-          title={namaBendahara || "Profil Saya"}
+          title={profile.namaBendahara || "Profil Saya"}
         >
-          {avatarUrl ? (
+          {profile.loading ? (
+            <span className="w-full h-full bg-slate-200 animate-pulse" />
+          ) : profile.avatarUrl ? (
             <img
-              src={avatarUrl}
+              src={profile.avatarUrl}
               alt="Foto profil"
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-white text-xs font-bold">{initials}</span>
+            <span className="text-white text-xs font-bold">
+              {profile.initials}
+            </span>
           )}
         </Link>
       </div>

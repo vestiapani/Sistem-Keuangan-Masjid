@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import {
   User,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useProfile } from "@/context/ProfileContext";
 
 const menuItems = [
   { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
@@ -33,31 +34,7 @@ const menuItems = [
 export default function Sidebar({ open = false, onClose = () => {} }) {
   const pathname = usePathname();
   const router = useRouter();
-
-  const [namaMasjid, setNamaMasjid] = useState("Sistem Keuangan");
-  const [namaBendahara, setNamaBendahara] = useState("Bendahara Masjid");
-
-  useEffect(() => {
-    const load = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("nama_bendahara, nama_masjid")
-        .eq("id", user.id)
-        .single();
-
-      if (profile) {
-        if (profile.nama_masjid) setNamaMasjid(profile.nama_masjid);
-        if (profile.nama_bendahara) setNamaBendahara(profile.nama_bendahara);
-      }
-    };
-    load();
-  }, []);
+  const { profile } = useProfile();
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -88,10 +65,18 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
               </div>
               <div className="min-w-0">
                 <h1 className="font-bold text-slate-800 text-[15px] leading-tight truncate">
-                  {namaMasjid}
+                  {profile.loading ? (
+                    <span className="inline-block h-4 w-28 bg-slate-100 rounded animate-pulse" />
+                  ) : (
+                    profile.namaMasjid
+                  )}
                 </h1>
                 <p className="text-[13px] text-slate-500 truncate">
-                  {namaBendahara}
+                  {profile.loading ? (
+                    <span className="inline-block h-3 w-20 bg-slate-100 rounded animate-pulse mt-1" />
+                  ) : (
+                    profile.namaBendahara || "Bendahara Masjid"
+                  )}
                 </p>
               </div>
             </div>
@@ -141,7 +126,6 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         </div>
 
         <div className="p-4 border-t border-slate-100 space-y-1">
-          {/* Link profil */}
           <Link
             href="/profil"
             onClick={onClose}
@@ -157,7 +141,11 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           <Link
             href="/bantuan"
             onClick={onClose}
-            className="flex items-center space-x-3 text-slate-600 hover:bg-slate-50 px-3 py-2.5 rounded-md font-medium text-sm transition-colors"
+            className={`flex items-center space-x-3 px-3 py-2.5 rounded-md font-medium text-sm transition-colors ${
+              pathname === "/bantuan"
+                ? "bg-[#E2E8F0] text-slate-900"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
           >
             <HelpCircle size={18} className="text-slate-500" />
             <span>Bantuan</span>

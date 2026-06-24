@@ -1,55 +1,51 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Camera, Save, User } from "lucide-react";
+import { Camera, Save } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { useProfile } from "@/context/ProfileContext";
 
 export default function ProfilPage() {
   const fileInputRef = useRef(null);
+  const { profile, updateProfile } = useProfile();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  const [user, setUser] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [email, setEmail] = useState("");
   const [namaBendahara, setNamaBendahara] = useState("");
   const [namaMasjid, setNamaMasjid] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
 
+  // Sync dari context saat pertama load
   useEffect(() => {
-    const load = async () => {
+    if (!profile.loading) {
+      setNamaBendahara(profile.namaBendahara);
+      setNamaMasjid(profile.namaMasjid);
+      setPreviewUrl(profile.avatarUrl);
+      setLoading(false);
+    }
+  }, [profile.loading]);
+
+  // Ambil email user (tidak ada di context)
+  useEffect(() => {
+    const getUser = async () => {
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
-      setUser(user);
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("nama_bendahara, nama_masjid, avatar_url")
-        .eq("id", user.id)
-        .single();
-
-      if (profile) {
-        setNamaBendahara(profile.nama_bendahara ?? "");
-        setNamaMasjid(profile.nama_masjid ?? "Masjid Al-Ikhlas");
-        if (profile.avatar_url) {
-          // Ambil public URL dari storage
-          const { data: urlData } = supabase.storage
-            .from("avatars")
-            .getPublicUrl(profile.avatar_url);
-          setAvatarUrl(urlData?.publicUrl ?? "");
-          setPreviewUrl(urlData?.publicUrl ?? "");
-        }
+      if (user) {
+        setUserId(user.id);
+        setEmail(user.email ?? "");
       }
-      setLoading(false);
     };
-    load();
+    getUser();
   }, []);
 
   const handlePhotoSelect = (e) => {
@@ -63,17 +59,17 @@ export default function ProfilPage() {
       toast.error("Format foto harus JPG, PNG, atau WEBP.");
       return;
     }
-    // Preview lokal dulu
     setPreviewUrl(URL.createObjectURL(file));
     handleUploadPhoto(file);
   };
 
   const handleUploadPhoto = async (file) => {
+    if (!userId) return;
     setUploadingPhoto(true);
     try {
       const supabase = createClient();
       const ext = file.name.split(".").pop();
-      const path = `${user.id}/avatar.${ext}`;
+      const path = `${userId}/avatar.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
@@ -81,31 +77,35 @@ export default function ProfilPage() {
 
       if (uploadError) throw uploadError;
 
-      // Simpan path ke profiles
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ avatar_url: path, updated_at: new Date().toISOString() })
-        .eq("id", user.id);
+        .eq("id", userId);
 
       if (updateError) throw updateError;
 
       const { data: urlData } = supabase.storage
         .from("avatars")
         .getPublicUrl(path);
-      setAvatarUrl(urlData?.publicUrl ?? "");
+
+      const newAvatarUrl = urlData?.publicUrl ?? "";
+      setPreviewUrl(newAvatarUrl);
+
+      // Update context supaya Navbar & Sidebar langsung reflect
+      updateProfile({ avatarUrl: newAvatarUrl });
+
       toast.success("Foto profil berhasil diperbarui.");
     } catch (err) {
-      console.error("Upload error detail:", err);
-      const msg = err?.message ?? err?.error_description ?? JSON.stringify(err);
-      toast.error(`Gagal upload: ${msg}`);
-      // Revert preview
-      setPreviewUrl(avatarUrl);
+      console.error("Upload error:", err);
+      toast.error(`Gagal upload: ${err?.message ?? "Coba lagi."}`);
+      setPreviewUrl(profile.avatarUrl);
     } finally {
       setUploadingPhoto(false);
     }
   };
 
   const handleSave = async () => {
+    if (!userId) return;
     setSaving(true);
     try {
       const supabase = createClient();
@@ -116,9 +116,13 @@ export default function ProfilPage() {
           nama_masjid: namaMasjid,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", user.id);
+        .eq("id", userId);
 
       if (error) throw error;
+
+      // Update context supaya Navbar & Sidebar langsung reflect tanpa re-fetch
+      updateProfile({ namaBendahara, namaMasjid });
+
       toast.success("Profil berhasil disimpan.");
     } catch (err) {
       console.error(err);
@@ -161,7 +165,6 @@ export default function ProfilPage() {
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-6">
-            {/* Avatar */}
             <div className="relative shrink-0">
               <div className="w-24 h-24 rounded-full overflow-hidden bg-[#0F4C3A] flex items-center justify-center ring-4 ring-[#0F4C3A]/20">
                 {previewUrl ? (
@@ -176,7 +179,6 @@ export default function ProfilPage() {
                   </span>
                 )}
               </div>
-              {/* Tombol kamera */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingPhoto}
@@ -197,12 +199,11 @@ export default function ProfilPage() {
               />
             </div>
 
-            {/* Info */}
             <div>
               <p className="font-bold text-slate-800 text-lg">
                 {namaBendahara || "—"}
               </p>
-              <p className="text-sm text-slate-500">{user?.email}</p>
+              <p className="text-sm text-slate-500">{email}</p>
               <p className="text-xs text-slate-400 mt-1">{namaMasjid || "—"}</p>
               <p className="text-xs text-slate-400 mt-3">
                 Klik ikon kamera untuk ganti foto. Maks. 2MB (JPG/PNG/WEBP).
@@ -251,7 +252,7 @@ export default function ProfilPage() {
             </label>
             <Input
               type="email"
-              value={user?.email ?? ""}
+              value={email}
               disabled
               className="bg-slate-50 text-slate-400 cursor-not-allowed"
             />
