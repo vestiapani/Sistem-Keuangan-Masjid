@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Building2,
   CreditCard,
@@ -12,6 +12,10 @@ import {
   Trash2,
   Save,
   CheckCircle2,
+  QrCode,
+  Upload,
+  X,
+  Landmark,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,12 +23,22 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
-// ─── Rekening Bank ────────────────────────────────────────────────
+// ─── Rekening Bank & QRIS ─────────────────────────────────────────
 function RekeningSection({ userId }) {
   const [rekenings, setRekenings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ bank: "", atas_nama: "", nomor: "" });
+  const [tipe, setTipe] = useState("bank"); // "bank" | "qris"
+  const [qrisFile, setQrisFile] = useState(null);
+  const [qrisPreview, setQrisPreview] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const [formBank, setFormBank] = useState({
+    bank: "",
+    atas_nama: "",
+    nomor: "",
+  });
+  const [formQris, setFormQris] = useState({ label: "" });
 
   const BANK_LIST = [
     "BSI",
@@ -39,22 +53,39 @@ function RekeningSection({ userId }) {
     "Bank Jatim",
   ];
 
+  const loadRekenings = async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("rekening_masjid")
+      .select("*")
+      .eq("aktif", true)
+      .order("created_at", { ascending: true });
+    if (!error) setRekenings(data ?? []);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("rekening_masjid")
-        .select("*")
-        .order("created_at", { ascending: true });
-      setRekenings(data ?? []);
-      setLoading(false);
-    };
-    load();
+    loadRekenings();
   }, []);
 
-  const handleTambah = async () => {
-    if (!form.bank || !form.atas_nama || !form.nomor) {
-      toast.error("Harap isi semua field rekening.");
+  const handleQrisFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error("Ukuran foto QRIS maksimal 3MB.");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Format foto harus JPG, PNG, atau WEBP.");
+      return;
+    }
+    setQrisFile(file);
+    setQrisPreview(URL.createObjectURL(file));
+  };
+
+  const handleTambahBank = async () => {
+    if (!formBank.bank || !formBank.atas_nama || !formBank.nomor) {
+      toast.error("Harap isi semua field rekening bank.");
       return;
     }
     setSaving(true);
@@ -62,13 +93,21 @@ function RekeningSection({ userId }) {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("rekening_masjid")
-        .insert([{ ...form, created_by: userId }])
+        .insert([
+          {
+            tipe: "bank",
+            bank: formBank.bank,
+            atas_nama: formBank.atas_nama,
+            nomor: formBank.nomor,
+            created_by: userId,
+          },
+        ])
         .select()
         .single();
       if (error) throw error;
       setRekenings((prev) => [...prev, data]);
-      setForm({ bank: "", atas_nama: "", nomor: "" });
-      toast.success("Rekening berhasil ditambahkan.");
+      setFormBank({ bank: "", atas_nama: "", nomor: "" });
+      toast.success("Rekening bank berhasil ditambahkan.");
     } catch (err) {
       toast.error(err?.message ?? "Gagal menambah rekening.");
     } finally {
@@ -76,20 +115,88 @@ function RekeningSection({ userId }) {
     }
   };
 
-  const handleHapus = async (id) => {
-    if (!confirm("Yakin hapus rekening ini?")) return;
+  const handleTambahQris = async () => {
+    if (!formQris.label) {
+      toast.error("Harap isi label QRIS.");
+      return;
+    }
+    if (!qrisFile) {
+      toast.error("Harap upload foto QRIS.");
+      return;
+    }
+    setSaving(true);
     try {
       const supabase = createClient();
+
+      // Upload foto QRIS ke bucket
+      const ext = qrisFile.name.split(".").pop();
+      const path = `qris-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("qris-masjid")
+        .upload(path, qrisFile, { upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { data, error } = await supabase
+        .from("rekening_masjid")
+        .insert([
+          {
+            tipe: "qris",
+            label: formQris.label,
+            qris_image_path: path,
+            created_by: userId,
+          },
+        ])
+        .select()
+        .single();
+      if (error) throw error;
+
+      setRekenings((prev) => [...prev, data]);
+      setFormQris({ label: "" });
+      setQrisFile(null);
+      setQrisPreview(null);
+      toast.success("QRIS berhasil ditambahkan.");
+    } catch (err) {
+      toast.error(err?.message ?? "Gagal menambah QRIS.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleHapus = async (rekening) => {
+    if (
+      !confirm(
+        `Yakin hapus ${rekening.tipe === "qris" ? "QRIS" : "rekening"} ini?`,
+      )
+    )
+      return;
+    try {
+      const supabase = createClient();
+
+      // Hapus file QRIS dari storage jika ada
+      if (rekening.tipe === "qris" && rekening.qris_image_path) {
+        await supabase.storage
+          .from("qris-masjid")
+          .remove([rekening.qris_image_path]);
+      }
+
       const { error } = await supabase
         .from("rekening_masjid")
         .delete()
-        .eq("id", id);
+        .eq("id", rekening.id);
       if (error) throw error;
-      setRekenings((prev) => prev.filter((r) => r.id !== id));
-      toast.success("Rekening berhasil dihapus.");
+
+      setRekenings((prev) => prev.filter((r) => r.id !== rekening.id));
+      toast.success("Berhasil dihapus.");
     } catch (err) {
-      toast.error(err?.message ?? "Gagal menghapus rekening.");
+      toast.error(err?.message ?? "Gagal menghapus.");
     }
+  };
+
+  const getQrisUrl = (path) => {
+    if (!path) return null;
+    const supabase = createClient();
+    const { data } = supabase.storage.from("qris-masjid").getPublicUrl(path);
+    return data?.publicUrl ?? null;
   };
 
   return (
@@ -99,14 +206,15 @@ function RekeningSection({ userId }) {
           <CreditCard size={18} className="text-blue-600" />
         </div>
         <div>
-          <h3 className="font-bold text-slate-800">Rekening Bank Masjid</h3>
+          <h3 className="font-bold text-slate-800">Rekening & QRIS Masjid</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Rekening ini akan ditampilkan di halaman konfirmasi donasi publik.
+            Ditampilkan di halaman konfirmasi donasi publik.
           </p>
         </div>
       </div>
-      <CardContent className="p-6 space-y-4">
-        {/* Daftar rekening */}
+
+      <CardContent className="p-6 space-y-5">
+        {/* Daftar rekening yang sudah ada */}
         {loading ? (
           <div className="space-y-2">
             {[1, 2].map((i) => (
@@ -118,24 +226,54 @@ function RekeningSection({ userId }) {
           </div>
         ) : rekenings.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-4">
-            Belum ada rekening. Tambahkan rekening di bawah.
+            Belum ada rekening atau QRIS. Tambahkan di bawah.
           </p>
         ) : (
           <div className="space-y-2">
             {rekenings.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-3"
+                className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 gap-3"
               >
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    {r.bank} — {r.nomor}
-                  </p>
-                  <p className="text-xs text-slate-500">a.n. {r.atas_nama}</p>
-                </div>
+                {r.tipe === "bank" ? (
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-1.5 bg-blue-50 rounded-md shrink-0">
+                      <Landmark size={14} className="text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">
+                        {r.bank} — {r.nomor}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        a.n. {r.atas_nama}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-1.5 bg-emerald-50 rounded-md shrink-0">
+                      <QrCode size={14} className="text-emerald-600" />
+                    </div>
+                    <div className="flex items-center gap-3 min-w-0">
+                      {r.qris_image_path && (
+                        <img
+                          src={getQrisUrl(r.qris_image_path)}
+                          alt="QRIS"
+                          className="w-10 h-10 object-cover rounded border border-slate-200 shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">
+                          {r.label}
+                        </p>
+                        <p className="text-xs text-slate-500">QRIS</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <button
-                  onClick={() => handleHapus(r.id)}
-                  className="p-1.5 text-rose-400 hover:bg-rose-50 rounded transition-colors"
+                  onClick={() => handleHapus(r)}
+                  className="p-1.5 text-rose-400 hover:bg-rose-50 rounded transition-colors shrink-0"
                 >
                   <Trash2 size={15} />
                 </button>
@@ -144,44 +282,143 @@ function RekeningSection({ userId }) {
           </div>
         )}
 
-        {/* Form tambah rekening */}
-        <div className="border border-dashed border-slate-300 rounded-lg p-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-600">
-            Tambah Rekening Baru
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <select
-              value={form.bank}
-              onChange={(e) => setForm({ ...form, bank: e.target.value })}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
-            >
-              <option value="">Pilih Bank</option>
-              {BANK_LIST.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
-            <Input
-              placeholder="Nomor Rekening"
-              value={form.nomor}
-              onChange={(e) => setForm({ ...form, nomor: e.target.value })}
-            />
-            <Input
-              placeholder="Atas Nama"
-              value={form.atas_nama}
-              onChange={(e) => setForm({ ...form, atas_nama: e.target.value })}
-            />
+        {/* Form tambah — toggle bank / qris */}
+        <div className="border border-dashed border-slate-300 rounded-lg p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-600">Tambah Baru</p>
+            {/* Toggle tipe */}
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold">
+              <button
+                onClick={() => setTipe("bank")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
+                  tipe === "bank"
+                    ? "bg-[#0F4C3A] text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Landmark size={12} /> Bank
+              </button>
+              <button
+                onClick={() => setTipe("qris")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
+                  tipe === "qris"
+                    ? "bg-[#0F4C3A] text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <QrCode size={12} /> QRIS
+              </button>
+            </div>
           </div>
-          <Button
-            onClick={handleTambah}
-            disabled={saving}
-            size="sm"
-            className="bg-[#0F4C3A] text-white"
-          >
-            <Plus size={14} className="mr-1.5" />
-            {saving ? "Menyimpan..." : "Tambah Rekening"}
-          </Button>
+
+          {tipe === "bank" ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <select
+                  value={formBank.bank}
+                  onChange={(e) =>
+                    setFormBank({ ...formBank, bank: e.target.value })
+                  }
+                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+                >
+                  <option value="">Pilih Bank</option>
+                  {BANK_LIST.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  placeholder="Nomor Rekening"
+                  value={formBank.nomor}
+                  onChange={(e) =>
+                    setFormBank({ ...formBank, nomor: e.target.value })
+                  }
+                />
+                <Input
+                  placeholder="Atas Nama"
+                  value={formBank.atas_nama}
+                  onChange={(e) =>
+                    setFormBank({ ...formBank, atas_nama: e.target.value })
+                  }
+                />
+              </div>
+              <Button
+                onClick={handleTambahBank}
+                disabled={saving}
+                size="sm"
+                className="bg-[#0F4C3A] text-white"
+              >
+                <Plus size={14} className="mr-1.5" />
+                {saving ? "Menyimpan..." : "Tambah Rekening Bank"}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Input
+                placeholder='Label, misal: "QRIS Masjid At-Taqwa"'
+                value={formQris.label}
+                onChange={(e) => setFormQris({ label: e.target.value })}
+              />
+
+              {/* Upload foto QRIS */}
+              {!qrisPreview ? (
+                <label className="border-2 border-dashed border-slate-200 rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:border-[#0F4C3A]/40 hover:bg-slate-50 transition-colors">
+                  <Upload size={20} className="text-slate-400 mb-2" />
+                  <p className="text-xs font-medium text-slate-600">
+                    Upload foto QRIS masjid
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    JPG, PNG, WEBP — maks. 3MB
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp"
+                    onChange={handleQrisFileChange}
+                    className="hidden"
+                  />
+                </label>
+              ) : (
+                <div className="flex items-center gap-3 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                  <img
+                    src={qrisPreview}
+                    alt="Preview QRIS"
+                    className="w-16 h-16 object-cover rounded border border-slate-200 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-700 truncate">
+                      {qrisFile?.name}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {qrisFile
+                        ? (qrisFile.size / 1024).toFixed(0) + " KB"
+                        : ""}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setQrisFile(null);
+                      setQrisPreview(null);
+                    }}
+                    className="p-1 text-slate-400 hover:text-rose-500"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              )}
+
+              <Button
+                onClick={handleTambahQris}
+                disabled={saving}
+                size="sm"
+                className="bg-[#0F4C3A] text-white"
+              >
+                <Plus size={14} className="mr-1.5" />
+                {saving ? "Mengupload..." : "Tambah QRIS"}
+              </Button>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -223,13 +460,11 @@ function InfoMasjidSection({ userId }) {
     setSaving(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from("info_masjid")
-        .upsert({
-          ...form,
-          updated_by: userId,
-          updated_at: new Date().toISOString(),
-        });
+      const { error } = await supabase.from("info_masjid").upsert({
+        ...form,
+        updated_by: userId,
+        updated_at: new Date().toISOString(),
+      });
       if (error) throw error;
       setSaved(true);
       toast.success("Info masjid berhasil disimpan.");
@@ -382,13 +617,11 @@ function NotifikasiSection({ userId }) {
     setSaving(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from("notif_preferences")
-        .upsert({
-          user_id: userId,
-          ...prefs,
-          updated_at: new Date().toISOString(),
-        });
+      const { error } = await supabase.from("notif_preferences").upsert({
+        user_id: userId,
+        ...prefs,
+        updated_at: new Date().toISOString(),
+      });
       if (error) throw error;
       toast.success("Preferensi notifikasi disimpan.");
     } catch (err) {
@@ -560,7 +793,6 @@ function KeamananSection() {
             </button>
           </div>
         </div>
-
         <div className="space-y-1.5">
           <label className="text-sm font-semibold text-slate-700">
             Password Baru
@@ -595,22 +827,7 @@ function KeamananSection() {
               ))}
             </div>
           )}
-          {passwordBaru && (
-            <p className="text-xs text-slate-400">
-              Kekuatan:{" "}
-              {[
-                /[A-Z]/.test(passwordBaru),
-                /[0-9]/.test(passwordBaru),
-                passwordBaru.length >= 8,
-              ].filter(Boolean).length >= 2
-                ? "Kuat"
-                : passwordBaru.length >= 6
-                  ? "Sedang"
-                  : "Lemah"}
-            </p>
-          )}
         </div>
-
         <div className="space-y-1.5">
           <label className="text-sm font-semibold text-slate-700">
             Konfirmasi Password Baru
@@ -638,7 +855,6 @@ function KeamananSection() {
             <p className="text-xs text-emerald-600">Password cocok.</p>
           )}
         </div>
-
         <Button
           onClick={handleChangePassword}
           disabled={
@@ -694,7 +910,6 @@ export default function PengaturanPage() {
           Kelola informasi masjid, rekening, notifikasi, dan keamanan akun.
         </p>
       </div>
-
       <InfoMasjidSection userId={userId} />
       <RekeningSection userId={userId} />
       <NotifikasiSection userId={userId} />
