@@ -90,10 +90,18 @@ function PublicNavbar() {
 
     const supabase = createClient();
     const channel = supabase
-      .channel("public-notif")
+      .channel("public-notif-realtime")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "donasis" },
+        () => {
+          loadNotifs();
+          setHasNew(true);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "pengeluarans" },
         () => {
           loadNotifs();
           setHasNew(true);
@@ -122,7 +130,7 @@ function PublicNavbar() {
             <Moon size={18} />
           </div>
           <span className="font-bold text-[#0F4C3A] text-lg sm:text-xl">
-            Masjid Al-Ikhlas
+            Masjid At-Taqwa
           </span>
         </Link>
 
@@ -291,7 +299,7 @@ function PublicFooter() {
             <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
               <Moon size={16} />
             </div>
-            <span className="font-bold text-lg">Masjid Al-Ikhlas</span>
+            <span className="font-bold text-lg">Masjid At-Taqwa</span>
           </div>
           <p className="text-sm text-emerald-200/80 max-w-sm">
             Mengelola amanah umat dengan transparan dan akuntabel. Setiap rupiah
@@ -356,7 +364,7 @@ function PublicFooter() {
 
       <div className="border-t border-white/10">
         <div className="max-w-6xl mx-auto px-6 py-4 text-center text-xs text-emerald-200/60">
-          © {new Date().getFullYear()} Masjid Al-Ikhlas. Amanah & Transparan
+          © {new Date().getFullYear()} Masjid At-Taqwa. Amanah & Transparan
           untuk Umat.
         </div>
       </div>

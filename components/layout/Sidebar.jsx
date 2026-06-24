@@ -14,7 +14,8 @@ import {
   Plus,
   ShieldCheck,
   X,
-  CalendarDays
+  CalendarDays,
+  Moon
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -56,7 +57,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           <div className="p-6 flex items-center justify-between">
             <div className="flex items-center space-x-3 min-w-0">
               <div className="w-10 h-10 bg-[#0F4C3A] rounded-lg flex items-center justify-center text-white font-bold text-lg shrink-0">
-                MA
+                <Moon size={20}/>
               </div>
               <div className="min-w-0">
                 <h1 className="font-bold text-slate-800 text-[15px] leading-tight truncate">

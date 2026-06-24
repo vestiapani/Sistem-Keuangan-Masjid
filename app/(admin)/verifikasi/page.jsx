@@ -39,7 +39,19 @@ export default function VerifikasiPage() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`verifikasi-realtime-${filter}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "donasis" },
+        () => loadData(),
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [loadData, filter]);;
 
   const handlePreviewBukti = async (donasi) => {
     if (!donasi.bukti_transfer_url) return;

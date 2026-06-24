@@ -39,12 +39,24 @@ function getWaktuAktif(timings) {
   if (!timings) return "Fajr";
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  const SHOLAT_KEYS = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
   let aktif = "Fajr";
-  for (const key of SHOLAT_KEYS) {
-    const t = parseTime(timings[key]);
+
+  for (let i = SHOLAT_KEYS.length - 1; i >= 0; i--) {
+    const key = SHOLAT_KEYS[i];
+    const t = timings[key];
     if (!t) continue;
-    const [h, m] = t.split(":").map(Number);
-    if (nowMin >= h * 60 + m) aktif = key;
+    const [h, m] = t
+      .replace(/\s*\(.*\)/, "")
+      .trim()
+      .slice(0, 5)
+      .split(":")
+      .map(Number);
+    if (nowMin >= h * 60 + m) {
+      aktif = key;
+      break;
+    }
   }
   return aktif;
 }
@@ -193,7 +205,7 @@ export default function BerandaPage() {
           </h1>
           <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-5 sm:px-6 py-4 max-w-xl mx-auto mb-7 border border-white/10">
             <p className="text-white/90 text-sm sm:text-base">
-              Selamat datang di Masjid Community Portal. Pusat informasi terpadu
+              Selamat datang di Masjid At-Taqwa. Pusat informasi terpadu
               yang Amanah & Transparan untuk seluruh jamaah.
             </p>
           </div>

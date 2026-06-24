@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Bell, HelpCircle, Menu } from "lucide-react";
+import { Bell, HelpCircle, Moon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getNotifikasiTerbaru, markAllNotifAsRead } from "@/lib/dashboard";
 
@@ -67,10 +67,10 @@ export default function Navbar({ onMenuClick = () => {} }) {
           onClick={onMenuClick}
           className="lg:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 rounded-md shrink-0"
         >
-          <Menu size={20} />
+          <Moon size={20} />
         </button>
         <h2 className="text-base sm:text-lg font-bold text-[#0F4C3A] truncate">
-          Masjid Al-Ikhlas
+          Masjid At-Taqwa
         </h2>
       </div>
 

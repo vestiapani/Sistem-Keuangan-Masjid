@@ -55,31 +55,30 @@ const TAMPIL_URUTAN = [
   "Isha",
 ];
 
-function getWaktuAktif(waktuSholat) {
-  if (!waktuSholat) return null;
-  const sekarang = new Date();
-  const jam = sekarang.getHours();
-  const menit = sekarang.getMinutes();
-  const nowMinutes = jam * 60 + menit;
+function getWaktuAktif(timings) {
+  if (!timings) return "Fajr";
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
 
-  // Cari waktu sholat yang sedang berlangsung / berikutnya
-  const times = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
-  let aktif = null;
+  const SHOLAT_KEYS = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
+  let aktif = "Fajr";
 
-  for (let i = times.length - 1; i >= 0; i--) {
-    const rawTime = waktuSholat[times[i]];
-    if (!rawTime) continue;
-    // Format waktu API: "04:42 (WIB)" atau "04:42"
-    const timeStr = rawTime.replace(/\s*\(.*\)/, "").trim();
-    const [h, m] = timeStr.split(":").map(Number);
-    const sholatMinutes = h * 60 + m;
-    if (nowMinutes >= sholatMinutes) {
-      aktif = times[i];
+  for (let i = SHOLAT_KEYS.length - 1; i >= 0; i--) {
+    const key = SHOLAT_KEYS[i];
+    const t = timings[key];
+    if (!t) continue;
+    const [h, m] = t
+      .replace(/\s*\(.*\)/, "")
+      .trim()
+      .slice(0, 5)
+      .split(":")
+      .map(Number);
+    if (nowMin >= h * 60 + m) {
+      aktif = key;
       break;
     }
   }
-
-  return aktif || "Fajr";
+  return aktif;
 }
 
 function hitungCountdown(waktuStr) {
@@ -130,6 +129,7 @@ export default function JadwalSholatPage() {
       if (json.code !== 200) throw new Error(json.status || "Error dari API");
 
       setWaktuSholat(json.data.timings);
+      setWaktuAktif(getWaktuAktif(json.data.timings));
       setTanggalInfo(json.data.date);
     } catch (err) {
       setError(err.message || "Gagal memuat jadwal sholat.");
