@@ -61,19 +61,35 @@ function getWaktuAktif(timings) {
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
   const SHOLAT_KEYS = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
-  let aktif = "Fajr";
 
-  for (let i = SHOLAT_KEYS.length - 1; i >= 0; i--) {
-    const key = SHOLAT_KEYS[i];
+  // Ambil nilai menit untuk waktu Subuh (Fajr) dan Isya (Isha)
+  const getMinutes = (key) => {
     const t = timings[key];
-    if (!t) continue;
+    if (!t) return 0;
     const [h, m] = t
       .replace(/\s*\(.*\)/, "")
       .trim()
       .slice(0, 5)
       .split(":")
       .map(Number);
-    if (nowMin >= h * 60 + m) {
+    return h * 60 + m;
+  };
+
+  const fajrMin = getMinutes("Fajr");
+  const ishaMin = getMinutes("Isha");
+
+  // Kondisi lewat tengah malam hingga sebelum subuh, atau sudah lewat Isya
+  if (nowMin < fajrMin || nowMin >= ishaMin) {
+    return "Isha";
+  }
+
+  // Kondisi waktu aktif normal
+  let aktif = "Fajr";
+  for (let i = SHOLAT_KEYS.length - 1; i >= 0; i--) {
+    const key = SHOLAT_KEYS[i];
+    const tMin = getMinutes(key);
+
+    if (nowMin >= tMin) {
       aktif = key;
       break;
     }

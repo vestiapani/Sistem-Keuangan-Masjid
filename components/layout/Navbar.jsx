@@ -14,8 +14,9 @@ export default function Navbar({ onMenuClick = () => {} }) {
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const loadNotifs = useCallback(async () => {
-    setLoading(true);
+  // Tambahkan parameter isBackground (default false)
+  const loadNotifs = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const data = await getNotifikasiTerbaru(8);
       setNotifs(data);
@@ -23,7 +24,7 @@ export default function Navbar({ onMenuClick = () => {} }) {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, []);
 
@@ -32,17 +33,18 @@ export default function Navbar({ onMenuClick = () => {} }) {
 
     const supabase = createClient();
     const channel = supabase
-      .channel(`navbar-notif-${Date.now()}`)
+      .channel("navbar-notif")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifikasis" },
-        () => loadNotifs(),
+        () => loadNotifs(true),
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [loadNotifs]);
-
   const handleOpenNotif = async () => {
     setShowNotif((v) => !v);
     if (!showNotif && unreadCount > 0) {

@@ -741,6 +741,7 @@ function RekeningSection({ userId }) {
 function InfoMasjidSection({ userId }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [recordId, setRecordId] = useState(null);
   const [form, setForm] = useState({
     alamat: "",
     telepon: "",
@@ -755,12 +756,12 @@ function InfoMasjidSection({ userId }) {
       const supabase = createClient();
       const { data } = await supabase.from("info_masjid").select("*").single();
       if (data) {
+        setRecordId(data.id);
         setForm({
           alamat: data.alamat ?? "",
           telepon: data.telepon ?? "",
           email_masjid: data.email_masjid ?? "",
           website: data.website ?? "",
-          // Pastikan tampil sebagai string untuk input, tapi simpan sebagai int/null
           kapasitas: data.kapasitas != null ? String(data.kapasitas) : "",
           tahun_berdiri:
             data.tahun_berdiri != null ? String(data.tahun_berdiri) : "",
@@ -775,8 +776,8 @@ function InfoMasjidSection({ userId }) {
     try {
       const supabase = createClient();
 
-      // Convert ke integer atau null — ini fix bug "invalid input syntax for type integer"
       const payload = {
+        ...(recordId && { id: recordId }),
         alamat: form.alamat || null,
         telepon: form.telepon || null,
         email_masjid: form.email_masjid || null,
@@ -788,7 +789,6 @@ function InfoMasjidSection({ userId }) {
         updated_at: new Date().toISOString(),
       };
 
-      // Validasi integer
       if (form.kapasitas !== "" && isNaN(payload.kapasitas)) {
         toast.error("Kapasitas harus berupa angka.");
         setSaving(false);
@@ -800,8 +800,15 @@ function InfoMasjidSection({ userId }) {
         return;
       }
 
-      const { error } = await supabase.from("info_masjid").upsert(payload);
+      const { data, error } = await supabase
+        .from("info_masjid")
+        .upsert(payload)
+        .select()
+        .single();
       if (error) throw error;
+
+      if (data) setRecordId(data.id);
+
       setSaved(true);
       toast.success("Info masjid berhasil disimpan.");
       setTimeout(() => setSaved(false), 3000);

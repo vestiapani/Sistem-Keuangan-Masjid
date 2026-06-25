@@ -77,10 +77,15 @@ export default function ProfilPage() {
 
       if (uploadError) throw uploadError;
 
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: path, updated_at: new Date().toISOString() })
-        .eq("id", userId);
+      const { error: updateError } = await supabase.from("profiles").upsert({
+        id: userId,
+        avatar_url: path,
+        nama: namaBendahara || "Admin", // Wajib diisi (Not Null)
+        role: "admin", // Wajib diisi (Not Null)
+        nama_bendahara: namaBendahara || "", // Boleh kosong, tapi kita isi
+        nama_masjid: namaMasjid || "", // Boleh kosong
+        updated_at: new Date().toISOString(),
+      });
 
       if (updateError) throw updateError;
 
@@ -109,14 +114,14 @@ export default function ProfilPage() {
     setSaving(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          nama_bendahara: namaBendahara,
-          nama_masjid: namaMasjid,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId);
+      const { error } = await supabase.from("profiles").upsert({
+        id: userId,
+        nama: namaBendahara || "Admin", // Wajib diisi (Not Null)
+        role: "admin", // Wajib diisi (Not Null)
+        nama_bendahara: namaBendahara,
+        nama_masjid: namaMasjid,
+        updated_at: new Date().toISOString(),
+      });
 
       if (error) throw error;
 

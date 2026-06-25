@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Download } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -32,7 +32,7 @@ import {
   generatePeriodeOptions,
   simpanLaporan,
 } from "@/lib/dashboard";
-import ExportPdfButton from "@/components/laporan/ExportPdfButton";
+import { generateLaporanPDF } from "@/lib/laporan-pdf";
 
 export default function LaporanPage() {
   const periodeOptions = generatePeriodeOptions(24);
@@ -41,6 +41,7 @@ export default function LaporanPage() {
   const [donasis, setDonasis] = useState([]);
   const [pengeluarans, setPengeluarans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   // State untuk modal edit
   const [editOpen, setEditOpen] = useState(false);
@@ -128,6 +129,7 @@ export default function LaporanPage() {
     setEditRow(row);
     const current = row.tipe === "donasi" ? row.pemasukan : row.pengeluaran;
     setEditNominal(String(current));
+    let s;
     setEditOpen(true);
   };
 
@@ -163,6 +165,34 @@ export default function LaporanPage() {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    setPdfLoading(true);
+    try {
+      // Map data row admin agar sesuai dengan struktur fungsi generator PDF publik
+      const transaksiFormatted = allRows.map((row) => ({
+        tanggal: row.tanggal,
+        kategori: row.tipe === "donasi" ? "Pemasukan" : "Pengeluaran",
+        keterangan: row.deskripsi,
+        jumlah: row.tipe === "donasi" ? row.pemasukan : row.pengeluaran,
+        tipe: row.tipe === "donasi" ? "masuk" : "keluar",
+      }));
+
+      await generateLaporanPDF({
+        totalMasuk,
+        totalKeluar,
+        saldo: surplus,
+        transaksi: transaksiFormatted,
+      });
+
+      toast.success("Laporan PDF berhasil diunduh.");
+    } catch (err) {
+      console.error("PDF error:", err);
+      toast.error("Gagal mengunduh PDF.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
@@ -176,13 +206,14 @@ export default function LaporanPage() {
             Simpan Laporan
           </Button>
 
-          <ExportPdfButton
-            periode={periode}
-            totalMasuk={totalMasuk}
-            totalKeluar={totalKeluar}
-            surplus={surplus}
-            rows={allRows}
-          />
+          <Button
+            onClick={handleDownloadPDF}
+            disabled={pdfLoading || loading}
+            className="bg-[#0F4C3A] hover:bg-[#0A3629] text-white flex items-center justify-center space-x-2 py-2.5 rounded-md font-medium text-sm transition-colors"
+          >
+            <Download size={15} className="text-white-600" />
+            {pdfLoading ? "Menyiapkan..." : "Export PDF"}
+          </Button>
 
           <select
             value={periode}
